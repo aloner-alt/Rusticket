@@ -1,0 +1,13 @@
+allowBuilds:
+  esbuild: true
+  workerd: true
+minimumReleaseAgeExclude:
+  - '@cloudflare/workerd-darwin-64@1.20260910.1'
+  - '@cloudflare/workerd-darwin-arm64@1.20260910.1'
+  - '@cloudflare/workerd-linux-64@1.20260910.1'
+  - '@cloudflare/workerd-linux-arm64@1.20260910.1'
+  - '@cloudflare/workerd-windows-64@1.20260910.1'
+  - '@cloudflare/workers-types@5.20260910.1'
+  - miniflare@5.20260910.0-alpha
+  - workerd@1.20260910.1
+  - wrangler@4.131.0
