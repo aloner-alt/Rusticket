@@ -1,7 +1,8 @@
 export function parseStrictInteger(value: string): number | null {
   const trimmed = value.trim();
-  if (!/^\d+$/.test(trimmed)) return null;
-  const parsed = Number(trimmed);
+  const match = /^(\d+)\s*\+?$/.exec(trimmed);
+  if (!match) return null;
+  const parsed = Number(match[1]);
   return Number.isSafeInteger(parsed) ? parsed : null;
 }
 

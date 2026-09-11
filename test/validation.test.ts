@@ -27,6 +27,8 @@ describe("parseSteamProfileUrl", () => {
 describe("validation helpers", () => {
   it("parses integers only", () => {
     expect(parseStrictInteger("18")).toBe(18);
+    expect(parseStrictInteger("8+")).toBe(8);
+    expect(parseStrictInteger("8 +")).toBe(8);
     expect(parseStrictInteger("4.5")).toBeNull();
     expect(parseStrictInteger("18 years")).toBeNull();
   });
