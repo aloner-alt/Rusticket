@@ -1,6 +1,6 @@
 import { messages } from "../config/messages";
 import { MINIMUM_AGE, MINIMUM_DAILY_ONLINE, ROLE_REQUIREMENTS, isRoleKey } from "../config/requirements";
-import { reviewActions } from "../discord/components";
+import { ageRejectionActions, reviewActions } from "../discord/components";
 import { DiscordRestError, discordRest, editOriginalResponse } from "../discord/rest";
 import { verifySteamProfile } from "../steam/steamClient";
 import { estimateRustInventory } from "../steam/inventory";
@@ -41,7 +41,8 @@ async function rejectAndLog(
   reason: string,
   details: Array<{ name: string; value: string }> = [],
   ban = false,
-  steamId64?: string
+  steamId64?: string,
+  components?: unknown[]
 ): Promise<void> {
   const user = interactionUser(interaction);
   if (ban && user) await banApplicant(env, user.id, steamId64, reason);
@@ -51,7 +52,7 @@ async function rejectAndLog(
     { name: "Результат", value: reason },
     ...(ban ? [{ name: "Блокировка", value: "Discord и доступный SteamID: 24 часа" }] : []),
     ...details
-  ], 0xe67e22);
+  ], 0xe67e22, components);
 }
 
 export async function submitApplication(interaction: DiscordInteraction, env: Env, roleValue: string): Promise<void> {
@@ -87,7 +88,16 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
     return;
   }
   if (age < MINIMUM_AGE) {
-    await rejectAndLog(env, interaction, messages.insufficientAge, "Недостаточный возраст", [{ name: "Возраст", value: String(age) }], true);
+    await rejectAndLog(
+      env,
+      interaction,
+      messages.insufficientAge,
+      "Недостаточный возраст",
+      [{ name: "Возраст", value: String(age) }],
+      true,
+      undefined,
+      ageRejectionActions(user.id)
+    );
     return;
   }
   if (dailyOnline < MINIMUM_DAILY_ONLINE) {

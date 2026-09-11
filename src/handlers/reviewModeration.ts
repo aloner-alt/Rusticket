@@ -101,3 +101,19 @@ export async function unbanFromReview(interaction: DiscordInteraction, env: Env)
   ], 0x3498db);
   return ephemeral("🔓 Блокировка Discord-пользователя и SteamID64 снята.");
 }
+
+export async function unbanUserFromLog(interaction: DiscordInteraction, env: Env): Promise<Response> {
+  if (!isStaff(interaction, env)) return ephemeral(messages.noPermission);
+  const prefix = "review:user-unban:";
+  const applicantId = (interaction.data?.custom_id ?? "").slice(prefix.length);
+  const staff = interactionUser(interaction);
+  if (!/^\d{17,20}$/.test(applicantId) || !staff) return ephemeral(messages.invalidData);
+
+  await unbanApplicant(env, applicantId);
+  await logEvent(env, "🔓 Блокировка подачи заявки снята", [
+    { name: "Кандидат", value: `<@${applicantId}> (\`${applicantId}\`)` },
+    { name: "Staff", value: `<@${staff.id}>` },
+    { name: "Тип", value: "Временная блокировка Discord ID" }
+  ], 0x3498db);
+  return ephemeral(`🔓 Блокировка подачи заявки для <@${applicantId}> снята.`);
+}

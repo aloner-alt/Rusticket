@@ -7,7 +7,7 @@ import { openApplication, selectRole } from "./handlers/openApplication";
 import { setupRecruitment } from "./handlers/setupRecruitment";
 import { submitApplication } from "./handlers/submitApplication";
 import { acceptApplication, cancelClose, closeTicket, confirmClose, inviteCandidateToVoice, openRejectModal, rejectApplication } from "./handlers/staffActions";
-import { banFromReview, createExceptionTicket, openExceptionModal, unbanFromReview } from "./handlers/reviewModeration";
+import { banFromReview, createExceptionTicket, openExceptionModal, unbanFromReview, unbanUserFromLog } from "./handlers/reviewModeration";
 import { claimRoles } from "./handlers/privateOnboarding";
 import { checkClanPlayer, checkPlayer } from "./handlers/playerCheck";
 import { bindServer, openServerBinding, publishServerStats, refreshPublishedServerStats } from "./handlers/serverStats";
@@ -67,6 +67,7 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
     if (customId?.startsWith("review:exception:")) return openExceptionModal(interaction, env);
     if (customId?.startsWith("review:ban:")) return banFromReview(interaction, env);
     if (customId?.startsWith("review:unban:")) return unbanFromReview(interaction, env);
+    if (customId?.startsWith("review:user-unban:")) return unbanUserFromLog(interaction, env);
     if (customId === "admin:warn") return openUserSelection(interaction, env, "warn");
     if (customId === "admin:member-info") return openUserSelection(interaction, env, "member-info");
     if (customId === "admin:blacklist") return openUserSelection(interaction, env, "blacklist");

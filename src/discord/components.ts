@@ -86,6 +86,12 @@ export function reviewActions(reviewId: string): unknown[] {
   ] }];
 }
 
+export function ageRejectionActions(userId: string): unknown[] {
+  return [{ type: 1, components: [
+    { type: 2, style: 2, label: "Разбанить подачу", emoji: { name: "🔓" }, custom_id: `review:user-unban:${userId}` }
+  ] }];
+}
+
 export function exceptionModal(reviewId: string): unknown {
   return {
     title: "Исключение для кандидата",
