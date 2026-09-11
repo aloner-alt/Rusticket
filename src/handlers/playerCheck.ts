@@ -20,9 +20,6 @@ export async function checkPlayer(interaction: DiscordInteraction, env: Env): Pr
   const player = await inspectPlayer(env, input);
   if (!player) { await editOriginalResponse(env, interaction.token, { content: "❌ Steam-профиль не найден. Проверьте SteamID64 или ссылку." }); return; }
   const bans = player.bans; const visible = player.summary.communityvisibilitystate === 3;
-  const recentBan = Boolean(bans && (bans.NumberOfVACBans > 0 || bans.NumberOfGameBans > 0) && bans.DaysSinceLastBan < 365);
-  const anyBan = Boolean(bans && (bans.NumberOfVACBans > 0 || bans.NumberOfGameBans > 0 || bans.CommunityBanned));
-  const risk = recentBan ? "🔴 Обнаружен недавний публичный бан — нужна ручная проверка" : anyBan ? "🟡 Обнаружена история публичных банов — проверьте вручную" : visible ? "🟢 Публичные баны не обнаружены" : "⚪ Часть данных скрыта — недостаточно информации";
   const created = player.summary.timecreated ? `<t:${player.summary.timecreated}:D> (<t:${player.summary.timecreated}:R>)` : "Скрыто";
   const inventory = player.inventory.status === "OK" ? `≈ **${(player.inventory.valueRub ?? 0).toLocaleString("ru-RU")} ₽** (${player.inventory.itemCount ?? 0} предметов)` : player.inventory.status === "PRIVATE" ? "🔒 Скрыт" : "⚠️ Недоступен";
   const fields: DiscordEmbedField[] = [
@@ -33,10 +30,9 @@ export async function checkPlayer(interaction: DiscordInteraction, env: Env): Pr
     { name: "VAC / игровые баны", value: bans ? `${bans.NumberOfVACBans} / ${bans.NumberOfGameBans}` : "Недоступно", inline: true },
     { name: "Последний бан", value: bans && (bans.NumberOfVACBans || bans.NumberOfGameBans) ? `${bans.DaysSinceLastBan} дн. назад` : "Нет", inline: true },
     { name: "Community / Economy", value: bans ? `${bans.CommunityBanned ? "Да" : "Нет"} / ${bans.EconomyBan}` : "Недоступно", inline: true },
-    { name: "Инвентарь Rust", value: inventory },
-    { name: "Оценка", value: risk }
+    { name: "Инвентарь Rust", value: inventory }
   ];
   const kills = findStat(player.stats, ["kill_player", "kills"]); const deaths = findStat(player.stats, ["deaths", "death"]);
-  if (kills !== undefined || deaths !== undefined) fields.splice(fields.length - 2, 0, { name: "Rust-статистика", value: `Убийства: ${kills ?? "—"}\nСмерти: ${deaths ?? "—"}${kills !== undefined && deaths ? `\nK/D: ${(kills / deaths).toFixed(2)}` : ""}` });
-  await editOriginalResponse(env, interaction.token, { embeds: [{ title: "🔎 Проверка игрока", color: recentBan ? 0xe74c3c : anyBan ? 0xf1c40f : 0x2ecc71, fields, footer: { text: "Публичные данные не доказывают использование читов. Итоговое решение принимает модератор." }, timestamp: new Date().toISOString() }] });
+  if (kills !== undefined || deaths !== undefined) fields.push({ name: "Rust-статистика", value: `Убийства: ${kills ?? "—"}\nСмерти: ${deaths ?? "—"}${kills !== undefined && deaths ? `\nK/D: ${(kills / deaths).toFixed(2)}` : ""}` });
+  await editOriginalResponse(env, interaction.token, { embeds: [{ title: "📊 Статистика игрока", color: 0x5865f2, fields, footer: { text: "Данные Steam и Rust" }, timestamp: new Date().toISOString() }] });
 }
