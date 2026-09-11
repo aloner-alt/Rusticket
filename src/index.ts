@@ -1,6 +1,7 @@
 import { messages } from "./config/messages";
 import { CustomId } from "./discord/components";
-import { EPHEMERAL, InteractionResponseType, InteractionType, deferredEphemeral, ephemeral, jsonResponse } from "./discord/interactions";
+import { EPHEMERAL, InteractionResponseType, InteractionType, deferredEphemeral, deferredPublic, ephemeral, jsonResponse } from "./discord/interactions";
+import { editOriginalResponse } from "./discord/rest";
 import { verifyDiscordRequest } from "./discord/verification";
 import { openApplication, selectRole } from "./handlers/openApplication";
 import { setupRecruitment } from "./handlers/setupRecruitment";
@@ -8,9 +9,14 @@ import { submitApplication } from "./handlers/submitApplication";
 import { acceptApplication, cancelClose, closeTicket, confirmClose, inviteCandidateToVoice, openRejectModal, rejectApplication } from "./handlers/staffActions";
 import { banFromReview, createExceptionTicket, openExceptionModal, unbanFromReview } from "./handlers/reviewModeration";
 import { claimRoles } from "./handlers/privateOnboarding";
+import { checkPlayer } from "./handlers/playerCheck";
 import { bindServer, openServerBinding, publishServerStats, refreshPublishedServerStats, showServerPlayers } from "./handlers/serverStats";
 import { expireWarnings, issueWarning, openUserSelection, openWipeModal, ownWarningStatus, permanentBlacklist, removeWarningFromChannel, selectedMemberInfo, selectBlacklistUser, selectWarningUser, sendDueWipeReminders, setupAdminPanel, submitWipe } from "./handlers/warnings";
 import type { DiscordInteraction, Env } from "./types";
+
+async function editPlayerCheckError(interaction: DiscordInteraction, env: Env): Promise<void> {
+  await editOriginalResponse(env, interaction.token, { content: "⚠️ Не удалось получить данные игрока. Попробуйте ещё раз немного позже." }).catch(() => undefined);
+}
 
 function validateEnvironment(env: Env): void {
   const required: Array<keyof Env> = [
@@ -19,7 +25,7 @@ function validateEnvironment(env: Env): void {
     "PRIVATE_INVITE_URL", "PUBLIC_MAIN_ROLE_ID", "PRIVATE_GUILD_ID", "PRIVATE_ADMIN_CHANNEL_ID",
     "BLACKLIST_CHANNEL_ID", "PRIVATE_RUST_ROLE_ID", "PRIVATE_COMBAT_ROLE_ID", "PRIVATE_FARM_ROLE_ID",
     "PRIVATE_BUILDER_ROLE_ID", "PRIVATE_INDUSTRIAL_ROLE_ID", "PRIVATE_ELECTRIC_ROLE_ID", "PRIVATE_PILOT_ROLE_ID"
-    , "PRIVATE_MODERATOR_ROLE_ID", "PRIVATE_WARN_1_ROLE_ID", "PRIVATE_WARN_2_ROLE_ID", "PUNISHMENT_CATEGORY_ID", "WIPE_CHANNEL_ID", "RUST_SERVER_CONNECT", "MONITORING_SERVER_ID"
+    , "PRIVATE_MODERATOR_ROLE_ID", "PRIVATE_WARN_1_ROLE_ID", "PRIVATE_WARN_2_ROLE_ID", "PUNISHMENT_CATEGORY_ID", "WIPE_CHANNEL_ID", "RUST_SERVER_CONNECT", "MONITORING_SERVER_ID", "PLAYER_CHECK_CHANNEL_ID"
   ];
   for (const key of required) {
     if (!env[key]) throw new Error(`Missing environment binding: ${key}`);
@@ -43,6 +49,10 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
     return setupAdminPanel(interaction, env);
   }
   if (interaction.type === InteractionType.ApplicationCommand && interaction.data?.name === "warn-status") return ownWarningStatus(interaction, env);
+  if (interaction.type === InteractionType.ApplicationCommand && interaction.data?.name === "check-player") {
+    ctx.waitUntil(checkPlayer(interaction, env).catch(() => editPlayerCheckError(interaction, env)));
+    return deferredPublic();
+  }
 
   const customId = interaction.data?.custom_id;
   if (interaction.type === InteractionType.MessageComponent) {

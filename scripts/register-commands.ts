@@ -22,6 +22,12 @@ const response = await fetch(`https://discord.com/api/v10/applications/${applica
     description: "Опубликовать панель подачи заявок .int",
     type: 1,
     dm_permission: false
+  }, {
+    name: "check-player",
+    description: "Проверить Steam-профиль, часы, инвентарь и публичные баны",
+    type: 1,
+    dm_permission: false,
+    options: [{ name: "steam", description: "SteamID64 или ссылка на Steam-профиль", type: 3, required: true }]
   }])
 });
 
@@ -49,6 +55,12 @@ const privateResponse = await fetch(`https://discord.com/api/v10/applications/${
     description: "Показать ваши активные варны и оставшееся время",
     type: 1,
     dm_permission: false
+  }, {
+    name: "check-player",
+    description: "Проверить Steam-профиль, часы, инвентарь и публичные баны",
+    type: 1,
+    dm_permission: false,
+    options: [{ name: "steam", description: "SteamID64 или ссылка на Steam-профиль", type: 3, required: true }]
   }])
 });
 if (!privateResponse.ok) throw new Error(`Private guild command registration failed with HTTP ${privateResponse.status}`);

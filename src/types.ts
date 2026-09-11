@@ -27,6 +27,7 @@ export interface Env {
   WIPE_CHANNEL_ID: string;
   RUST_SERVER_CONNECT: string;
   MONITORING_SERVER_ID: string;
+  PLAYER_CHECK_CHANNEL_ID: string;
   APPLICATIONS: KVNamespace;
 }
 

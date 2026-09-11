@@ -30,3 +30,7 @@ export function deferredEphemeral(): Response {
     data: { flags: EPHEMERAL }
   });
 }
+
+export function deferredPublic(): Response {
+  return jsonResponse({ type: InteractionResponseType.DeferredChannelMessageWithSource });
+}
