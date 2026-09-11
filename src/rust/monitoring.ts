@@ -20,7 +20,7 @@ export async function fetchPlayers(config: RustServerConfig) {
   return result.response?.items ?? [];
 }
 
-export function serverEmbed(config: RustServerConfig, server: Awaited<ReturnType<typeof fetchServer>>): DiscordEmbed {
+export function serverEmbed(config: RustServerConfig, server: Awaited<ReturnType<typeof fetchServer>>, players: Array<{ name: string }> = []): DiscordEmbed {
   const stamp = (value?: number) => value ? `<t:${value}:F> (<t:${value}:R>)` : "Нет данных";
   return { title: `🎮 ${config.label}`, description: server.status ? "🟢 **Сервер онлайн**" : "🔴 **Сервер недоступен**", color: server.status ? 0x2ecc71 : 0xe74c3c,
     fields: [
@@ -30,7 +30,8 @@ export function serverEmbed(config: RustServerConfig, server: Awaited<ReturnType
       { name: "Размер / Seed", value: `${server.map_size ?? "—"} / ${server.map_seed ?? "—"}`, inline: true },
       { name: "Сущности", value: (server.entities_count ?? 0).toLocaleString("ru-RU"), inline: true },
       { name: "Версия", value: server.version || "—", inline: true },
-      { name: "Последний вайп", value: stamp(server.wipe) }, { name: "Подключение", value: `\`connect ${config.connect}\`` }
+      { name: "Последний вайп", value: stamp(server.wipe) }, { name: "Подключение", value: `\`connect ${config.connect}\`` },
+      { name: "Игроки на сервере", value: players.length ? players.slice(0, 25).map((player) => player.name).join(", ").slice(0, 1000) : "Список скрыт или пуст" }
     ], footer: { text: "Источник: GAMEMONITORING • обновление каждые 10 минут" },
     timestamp: new Date((server.last_update ?? Math.floor(Date.now() / 1000)) * 1000).toISOString() };
 }

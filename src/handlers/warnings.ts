@@ -15,7 +15,7 @@ export async function setupAdminPanel(i: DiscordInteraction, env: Env): Promise<
   return ephemeral(`✅ Новая админ-панель опубликована в <#${env.PRIVATE_ADMIN_CHANNEL_ID}>.`);
 }
 
-export function openUserSelection(i: DiscordInteraction, env: Env, action: "warn" | "member-info" | "blacklist"): Response {
+export function openUserSelection(i: DiscordInteraction, env: Env, action: "warn" | "member-info" | "blacklist" | "clan-stats"): Response {
   if (!isPrivateModerator(i, env)) return ephemeral("❌ Недостаточно прав.");
   return jsonResponse({ type: InteractionResponseType.ChannelMessageWithSource, data: { content: "Выберите пользователя:", components: userSelector(action), flags: 64 } });
 }

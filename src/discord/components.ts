@@ -113,7 +113,7 @@ export function adminPanel(): { embeds: DiscordEmbed[]; components: unknown[] } 
     ] }, { type: 1, components: [
       { type: 2, style: 4, label: "Добавить в ЧС навсегда", custom_id: "admin:blacklist", emoji: { name: "⛔" } },
       { type: 2, style: 1, label: "Привязать Rust-сервер", custom_id: "admin:server-bind", emoji: { name: "🎮" } },
-      { type: 2, style: 2, label: "Статистика игроков", custom_id: "admin:server-players", emoji: { name: "📊" } },
+      { type: 2, style: 2, label: "Статистика игрока клана", custom_id: "admin:clan-stats", emoji: { name: "📊" } },
       { type: 2, style: 3, label: "Обновить Vipe Info", custom_id: "admin:server-publish", emoji: { name: "🔄" } }
     ] }]
   };
@@ -127,7 +127,7 @@ export function serverBindingModal(defaultConnect: string, defaultId: string): u
   ] };
 }
 
-export function userSelector(action: "warn" | "member-info" | "blacklist"): unknown[] {
+export function userSelector(action: "warn" | "member-info" | "blacklist" | "clan-stats"): unknown[] {
   return [{ type: 1, components: [{ type: 5, custom_id: `admin:${action}-user`, placeholder: "Выберите участника", min_values: 1, max_values: 1 }] }];
 }
 

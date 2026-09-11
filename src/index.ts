@@ -9,8 +9,8 @@ import { submitApplication } from "./handlers/submitApplication";
 import { acceptApplication, cancelClose, closeTicket, confirmClose, inviteCandidateToVoice, openRejectModal, rejectApplication } from "./handlers/staffActions";
 import { banFromReview, createExceptionTicket, openExceptionModal, unbanFromReview } from "./handlers/reviewModeration";
 import { claimRoles } from "./handlers/privateOnboarding";
-import { checkPlayer } from "./handlers/playerCheck";
-import { bindServer, openServerBinding, publishServerStats, refreshPublishedServerStats, showServerPlayers } from "./handlers/serverStats";
+import { checkClanPlayer, checkPlayer } from "./handlers/playerCheck";
+import { bindServer, openServerBinding, publishServerStats, refreshPublishedServerStats } from "./handlers/serverStats";
 import { expireWarnings, issueWarning, openUserSelection, openWipeModal, ownWarningStatus, permanentBlacklist, removeWarningFromChannel, selectedMemberInfo, selectBlacklistUser, selectWarningUser, sendDueWipeReminders, setupAdminPanel, submitWipe } from "./handlers/warnings";
 import type { DiscordInteraction, Env } from "./types";
 
@@ -75,7 +75,11 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
     if (customId === "admin:blacklist-user") return selectBlacklistUser(interaction, env);
     if (customId === "admin:wipe") return openWipeModal(interaction, env);
     if (customId === "admin:server-bind") return openServerBinding(interaction, env);
-    if (customId === "admin:server-players") return showServerPlayers(interaction, env);
+    if (customId === "admin:clan-stats") return openUserSelection(interaction, env, "clan-stats");
+    if (customId === "admin:clan-stats-user") {
+      ctx.waitUntil(checkClanPlayer(interaction, env).catch(() => editPlayerCheckError(interaction, env)));
+      return deferredEphemeral();
+    }
     if (customId === "admin:server-publish") return publishServerStats(interaction, env);
     if (customId?.startsWith("warning:remove:")) return removeWarningFromChannel(interaction, env);
   }

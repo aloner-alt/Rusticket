@@ -25,16 +25,9 @@ export async function bindServer(interaction: DiscordInteraction, env: Env): Pro
   return ephemeral(`✅ Привязан **${server.name}** — ${server.numplayers}/${server.maxplayers}. Нажмите «Обновить Vipe Info».`);
 }
 
-export async function showServerPlayers(interaction: DiscordInteraction, env: Env): Promise<Response> {
-  if (!isPrivateModerator(interaction, env)) return ephemeral("❌ Недостаточно прав.");
-  const current = await config(env); const [server, players] = await Promise.all([fetchServer(current), fetchPlayers(current)]);
-  const lines = players.slice(0, 40).map((player, index) => `${index + 1}. ${player.name}`).join("\n");
-  return ephemeral(`📊 **${server.name}**\nОнлайн: **${server.numplayers}/${server.maxplayers}**\n\n**Публичный список игроков:**\n${lines || "Сервер скрывает список игроков."}\n\n⚠️ На чужом сервере имена могут быть обезличены; SteamID и K/D без RCON недоступны.`);
-}
-
 export async function publishServerStats(interaction: DiscordInteraction, env: Env): Promise<Response> {
   if (!isPrivateModerator(interaction, env)) return ephemeral("❌ Недостаточно прав.");
-  const current = await config(env); const server = await fetchServer(current); const body = { embeds: [serverEmbed(current, server)] };
+  const current = await config(env); const [server, players] = await Promise.all([fetchServer(current), fetchPlayers(current)]); const body = { embeds: [serverEmbed(current, server, players)] };
   let updated = false;
   if (current.publicMessageId) updated = await discordRest(env, `/channels/${env.WIPE_CHANNEL_ID}/messages/${current.publicMessageId}`, { method: "PATCH", body: JSON.stringify(body) }).then(() => true).catch(() => false);
   if (!updated) { const message = await sendChannelMessage(env, env.WIPE_CHANNEL_ID, body); current.publicMessageId = message.id; await saveRustServerConfig(env, current); }
@@ -43,6 +36,6 @@ export async function publishServerStats(interaction: DiscordInteraction, env: E
 
 export async function refreshPublishedServerStats(env: Env): Promise<void> {
   const current = await getRustServerConfig(env); if (!current?.publicMessageId) return;
-  const server = await fetchServer(current);
-  await discordRest(env, `/channels/${env.WIPE_CHANNEL_ID}/messages/${current.publicMessageId}`, { method: "PATCH", body: JSON.stringify({ embeds: [serverEmbed(current, server)] }) });
+  const [server, players] = await Promise.all([fetchServer(current), fetchPlayers(current)]);
+  await discordRest(env, `/channels/${env.WIPE_CHANNEL_ID}/messages/${current.publicMessageId}`, { method: "PATCH", body: JSON.stringify({ embeds: [serverEmbed(current, server, players)] }) });
 }
