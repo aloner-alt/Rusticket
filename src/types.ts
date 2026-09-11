@@ -25,6 +25,8 @@ export interface Env {
   PRIVATE_WARN_2_ROLE_ID: string;
   PUNISHMENT_CATEGORY_ID: string;
   WIPE_CHANNEL_ID: string;
+  RUST_SERVER_CONNECT: string;
+  MONITORING_SERVER_ID: string;
   APPLICATIONS: KVNamespace;
 }
 
@@ -171,4 +173,11 @@ export interface WarningRecord {
   userId: string;
   channelId: string;
   warnings: WarningEntry[];
+}
+
+export interface RustServerConfig {
+  label: string;
+  connect: string;
+  monitoringId: string;
+  publicMessageId?: string;
 }

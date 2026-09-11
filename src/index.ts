@@ -8,6 +8,7 @@ import { submitApplication } from "./handlers/submitApplication";
 import { acceptApplication, cancelClose, closeTicket, confirmClose, inviteCandidateToVoice, openRejectModal, rejectApplication } from "./handlers/staffActions";
 import { banFromReview, createExceptionTicket, openExceptionModal, unbanFromReview } from "./handlers/reviewModeration";
 import { claimRoles } from "./handlers/privateOnboarding";
+import { bindServer, openServerBinding, publishServerStats, refreshPublishedServerStats, showServerPlayers } from "./handlers/serverStats";
 import { expireWarnings, issueWarning, openUserSelection, openWipeModal, ownWarningStatus, permanentBlacklist, removeWarningFromChannel, selectedMemberInfo, selectBlacklistUser, selectWarningUser, sendDueWipeReminders, setupAdminPanel, submitWipe } from "./handlers/warnings";
 import type { DiscordInteraction, Env } from "./types";
 
@@ -18,7 +19,7 @@ function validateEnvironment(env: Env): void {
     "PRIVATE_INVITE_URL", "PUBLIC_MAIN_ROLE_ID", "PRIVATE_GUILD_ID", "PRIVATE_ADMIN_CHANNEL_ID",
     "BLACKLIST_CHANNEL_ID", "PRIVATE_RUST_ROLE_ID", "PRIVATE_COMBAT_ROLE_ID", "PRIVATE_FARM_ROLE_ID",
     "PRIVATE_BUILDER_ROLE_ID", "PRIVATE_INDUSTRIAL_ROLE_ID", "PRIVATE_ELECTRIC_ROLE_ID", "PRIVATE_PILOT_ROLE_ID"
-    , "PRIVATE_MODERATOR_ROLE_ID", "PRIVATE_WARN_1_ROLE_ID", "PRIVATE_WARN_2_ROLE_ID", "PUNISHMENT_CATEGORY_ID", "WIPE_CHANNEL_ID"
+    , "PRIVATE_MODERATOR_ROLE_ID", "PRIVATE_WARN_1_ROLE_ID", "PRIVATE_WARN_2_ROLE_ID", "PUNISHMENT_CATEGORY_ID", "WIPE_CHANNEL_ID", "RUST_SERVER_CONNECT", "MONITORING_SERVER_ID"
   ];
   for (const key of required) {
     if (!env[key]) throw new Error(`Missing environment binding: ${key}`);
@@ -63,6 +64,9 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
     if (customId === "admin:member-info-user") return selectedMemberInfo(interaction, env);
     if (customId === "admin:blacklist-user") return selectBlacklistUser(interaction, env);
     if (customId === "admin:wipe") return openWipeModal(interaction, env);
+    if (customId === "admin:server-bind") return openServerBinding(interaction, env);
+    if (customId === "admin:server-players") return showServerPlayers(interaction, env);
+    if (customId === "admin:server-publish") return publishServerStats(interaction, env);
     if (customId?.startsWith("warning:remove:")) return removeWarningFromChannel(interaction, env);
   }
 
@@ -88,6 +92,7 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
   }
   if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith("admin:warn-modal:")) return issueWarning(interaction, env);
   if (interaction.type === InteractionType.ModalSubmit && customId === "admin:wipe-modal") return submitWipe(interaction, env);
+  if (interaction.type === InteractionType.ModalSubmit && customId === "admin:server-bind-modal") return bindServer(interaction, env);
   if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith("admin:blacklist-modal:")) return permanentBlacklist(interaction, env);
 
   return ephemeral("⚠️ Неизвестное действие. Обновите сообщение или попробуйте снова.");
@@ -114,6 +119,6 @@ export default {
     }
   },
   scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
-    ctx.waitUntil(Promise.all([expireWarnings(env), sendDueWipeReminders(env)]).then(() => undefined));
+    ctx.waitUntil(Promise.all([expireWarnings(env), sendDueWipeReminders(env), refreshPublishedServerStats(env)]).then(() => undefined));
   }
 } satisfies ExportedHandler<Env>;

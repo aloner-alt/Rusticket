@@ -1,5 +1,5 @@
 import { COOLDOWN_SECONDS } from "../config/requirements";
-import type { ApplicationRecord, BanRecord, Env, MemberLink, RejectedReview, WarningRecord } from "../types";
+import type { ApplicationRecord, BanRecord, Env, MemberLink, RejectedReview, RustServerConfig, WarningRecord } from "../types";
 
 const applicantKey = (userId: string) => `active:${userId}`;
 const channelKey = (channelId: string) => `channel:${channelId}`;
@@ -11,6 +11,7 @@ const reviewKey = (id: string) => `review:${id}`;
 const memberKey = (userId: string) => `member:${userId}`;
 const warningKey = (userId: string) => `warning:${userId}`;
 const acceptedKey = (userId: string) => `accepted:${userId}`;
+const SERVER_CONFIG_KEY = "rust-server:primary";
 
 export async function isCoolingDown(env: Env, userId: string): Promise<boolean> {
   const key = cooldownKey(userId);
@@ -99,6 +100,14 @@ export function getAcceptedApplication(env: Env, userId: string): Promise<Applic
 
 export function deleteAcceptedApplication(env: Env, userId: string): Promise<void> {
   return env.APPLICATIONS.delete(acceptedKey(userId));
+}
+
+export function getRustServerConfig(env: Env): Promise<RustServerConfig | null> {
+  return env.APPLICATIONS.get<RustServerConfig>(SERVER_CONFIG_KEY, "json");
+}
+
+export function saveRustServerConfig(env: Env, config: RustServerConfig): Promise<void> {
+  return env.APPLICATIONS.put(SERVER_CONFIG_KEY, JSON.stringify(config));
 }
 
 export function getWarningRecord(env: Env, userId: string): Promise<WarningRecord | null> {

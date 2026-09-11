@@ -111,9 +111,20 @@ export function adminPanel(): { embeds: DiscordEmbed[]; components: unknown[] } 
       { type: 2, style: 1, label: "Steam-привязка", custom_id: "admin:member-info", emoji: { name: "🔗" } },
       { type: 2, style: 3, label: "Предупреждение о вайпе", custom_id: "admin:wipe", emoji: { name: "📢" } }
     ] }, { type: 1, components: [
-      { type: 2, style: 4, label: "Добавить в ЧС навсегда", custom_id: "admin:blacklist", emoji: { name: "⛔" } }
+      { type: 2, style: 4, label: "Добавить в ЧС навсегда", custom_id: "admin:blacklist", emoji: { name: "⛔" } },
+      { type: 2, style: 1, label: "Привязать Rust-сервер", custom_id: "admin:server-bind", emoji: { name: "🎮" } },
+      { type: 2, style: 2, label: "Статистика игроков", custom_id: "admin:server-players", emoji: { name: "📊" } },
+      { type: 2, style: 3, label: "Обновить Vipe Info", custom_id: "admin:server-publish", emoji: { name: "🔄" } }
     ] }]
   };
+}
+
+export function serverBindingModal(defaultConnect: string, defaultId: string): unknown {
+  return { title: "Привязать Rust-сервер", custom_id: "admin:server-bind-modal", components: [
+    { type: 1, components: [{ type: 4, custom_id: "label", label: "Название в Discord", style: 1, required: true, value: "Blood Rust — Black", max_length: 100 }] },
+    { type: 1, components: [{ type: 4, custom_id: "connect", label: "Connect IP:PORT", style: 1, required: true, value: defaultConnect, max_length: 200 }] },
+    { type: 1, components: [{ type: 4, custom_id: "monitoring_id", label: "ID GAMEMONITORING", style: 1, required: true, value: defaultId, max_length: 20 }] }
+  ] };
 }
 
 export function userSelector(action: "warn" | "member-info" | "blacklist"): unknown[] {
