@@ -50,7 +50,7 @@ export function applicationModal(role: string): unknown {
     custom_id: `${CustomId.FormPrefix}${role}`,
     components: [
       { type: 1, components: [{ type: 4, custom_id: "age", label: "Возраст", style: 1, placeholder: "Например: 18", required: true, min_length: 2, max_length: 2 }] },
-      { type: 1, components: [{ type: 4, custom_id: "steam", label: "Ссылка на Steam", style: 1, placeholder: "https://steamcommunity.com/id/example", required: true, max_length: 200 }] },
+      { type: 1, components: [{ type: 4, custom_id: "steam", label: "Steam-аккаунты (до 5)", style: 2, placeholder: "Каждая ссылка с новой строки или через запятую", required: true, max_length: 1000 }] },
       { type: 1, components: [{ type: 4, custom_id: "daily_online", label: "Средний онлайн в сутки", style: 1, placeholder: "Например: 6", required: true, max_length: 2 }] },
       { type: 1, components: [{ type: 4, custom_id: "real_name", label: "Ваше имя", style: 1, placeholder: "Например: Богдан", required: true, min_length: 2, max_length: 32 }] },
       { type: 1, components: [{ type: 4, custom_id: "comment", label: "Комментарий для рекрутёра", style: 2, placeholder: "Расскажите о себе или укажите важные детали", required: false, max_length: 1000 }] }
@@ -166,6 +166,7 @@ export function warningChannelButtons(userId: string, level: 1 | 2): unknown[] {
 
 export function applicationEmbed(app: ApplicationRecord): DiscordEmbed {
   const role = ROLE_REQUIREMENTS[app.role];
+  const steamAccounts = app.steamAccounts ?? [];
   const staff = app.staffId ? `<@${app.staffId}>` : "Неизвестен";
   let status = "🟡 Ожидает рассмотрения Staff";
   if (app.status === "ACCEPTED") status = `✅ **ЗАЯВКА ПРИНЯТА**\n\n**Решение принял:** ${staff}`;
@@ -183,6 +184,10 @@ export function applicationEmbed(app: ApplicationRecord): DiscordEmbed {
       { name: "Направление", value: `${role.emoji} ${role.label}`, inline: true },
       { name: "Steam", value: `[Открыть профиль](${app.steamUrl})`, inline: true },
       { name: "SteamID64", value: `\`${app.steamId64}\``, inline: true },
+      ...(steamAccounts.length > 1 ? [{
+        name: "Все Steam-аккаунты",
+        value: steamAccounts.map((account, index) => `${index + 1}. [${account.steamName ?? account.steamId64}](${account.steamUrl}) — \`${account.steamId64}\`${account.dataHidden ? " — часы скрыты" : account.rustHours !== undefined ? ` — ${account.rustHours.toLocaleString("ru-RU")} ч.` : ""}`).join("\n").slice(0, 1024)
+      }] : []),
       { name: "Часы Rust", value: app.steamDataHidden ? "🔒 Скрыты — ручная проверка" : `**${app.rustHours.toLocaleString("ru-RU")} ч.**`, inline: true },
       { name: "Минимум направления", value: `${app.requiredHours.toLocaleString("ru-RU")} ч.`, inline: true },
       { name: "Инвентарь Rust", value: app.inventoryStatus === "OK"

@@ -2,7 +2,7 @@ import { getStaffRoleId } from "../config/roles";
 import { applicationEmbed, staffButtons } from "../discord/components";
 import { discordRest, sendChannelMessage } from "../discord/rest";
 import { saveApplication } from "../storage/applications";
-import type { ApplicationRecord, Env, RoleKey } from "../types";
+import type { ApplicationRecord, ApplicationSteamAccount, Env, RoleKey } from "../types";
 import { normalizeChannelName } from "../utils/validation";
 
 interface DiscordChannel { id: string }
@@ -15,6 +15,7 @@ export interface TicketInput {
   role: RoleKey;
   steamUrl: string;
   steamId64: string;
+  steamAccounts?: ApplicationSteamAccount[];
   rustHours: number;
   requiredHours: number;
   realName?: string;

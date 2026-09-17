@@ -124,17 +124,19 @@ export function deleteWarningRecord(env: Env, userId: string): Promise<void> {
 
 export async function saveApplication(env: Env, application: ApplicationRecord): Promise<void> {
   const json = JSON.stringify(application);
+  const steamIds = application.steamAccounts?.map((account) => account.steamId64) ?? [application.steamId64];
   await Promise.all([
     env.APPLICATIONS.put(applicantKey(application.applicantId), json),
     env.APPLICATIONS.put(channelKey(application.ticketChannelId), json),
-    env.APPLICATIONS.put(steamActiveKey(application.steamId64), json)
+    ...steamIds.map((steamId64) => env.APPLICATIONS.put(steamActiveKey(steamId64), json))
   ]);
 }
 
 export async function closeApplication(env: Env, application: ApplicationRecord): Promise<void> {
+  const steamIds = application.steamAccounts?.map((account) => account.steamId64) ?? [application.steamId64];
   await Promise.all([
     env.APPLICATIONS.delete(applicantKey(application.applicantId)),
     env.APPLICATIONS.delete(channelKey(application.ticketChannelId)),
-    env.APPLICATIONS.delete(steamActiveKey(application.steamId64))
+    ...steamIds.map((steamId64) => env.APPLICATIONS.delete(steamActiveKey(steamId64)))
   ]);
 }

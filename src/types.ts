@@ -94,6 +94,14 @@ export interface DiscordEmbed {
 export type RoleKey = "combat" | "farm" | "builder" | "industrial" | "electric" | "pilot";
 export type ApplicationStatus = "PENDING" | "ACCEPTED" | "REJECTED";
 
+export interface ApplicationSteamAccount {
+  steamUrl: string;
+  steamId64: string;
+  steamName?: string;
+  rustHours?: number;
+  dataHidden?: boolean;
+}
+
 export interface ApplicationRecord {
   applicantId: string;
   applicantUsername: string;
@@ -105,6 +113,7 @@ export interface ApplicationRecord {
   role: RoleKey;
   steamUrl: string;
   steamId64: string;
+  steamAccounts?: ApplicationSteamAccount[];
   rustHours: number;
   requiredHours: number;
   realName?: string;

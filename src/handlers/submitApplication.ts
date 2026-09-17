@@ -8,7 +8,7 @@ import {
   banApplicant, closeApplication, getActiveApplication, getActiveApplicationBySteam, getSteamBan,
   getUserBan, isCoolingDown, saveRejectedReview
 } from "../storage/applications";
-import type { DiscordInteraction, Env, RejectedReview } from "../types";
+import type { ApplicationSteamAccount, DiscordInteraction, Env, RejectedReview } from "../types";
 import { logEvent } from "../utils/logger";
 import { parseStrictInteger } from "../utils/validation";
 import { interactionUser, modalValue } from "./helpers";
@@ -80,10 +80,12 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
 
   const age = parseStrictInteger(modalValue(interaction, "age") ?? "");
   const dailyOnline = parseStrictInteger(modalValue(interaction, "daily_online") ?? "");
-  const steamInput = modalValue(interaction, "steam") ?? "";
+  const steamRawInput = modalValue(interaction, "steam") ?? "";
+  const steamInputs = [...new Set(steamRawInput.split(/[\s,;]+/).map((value) => value.trim()).filter(Boolean))];
+  const steamInput = steamInputs[0] ?? "";
   const realName = modalValue(interaction, "real_name")?.trim();
   const applicantComment = modalValue(interaction, "comment")?.trim() || undefined;
-  if (age === null || dailyOnline === null || age > 99 || dailyOnline > 24 || !realName) {
+  if (age === null || dailyOnline === null || age > 99 || dailyOnline > 24 || !realName || steamInputs.length === 0 || steamInputs.length > 5) {
     await rejectAndLog(env, interaction, messages.invalidData, "Некорректные данные формы");
     return;
   }
@@ -105,7 +107,39 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
     return;
   }
 
-  const steam = await verifySteamProfile(steamInput, env.STEAM_API_KEY);
+  const steamResults = await Promise.all(steamInputs.map((input) => verifySteamProfile(input, env.STEAM_API_KEY)));
+  const steam = steamResults[0];
+  if (!steam) {
+    await rejectAndLog(env, interaction, messages.invalidSteam, "Steam: EMPTY_INPUT");
+    return;
+  }
+  const invalidAdditionalIndex = steamResults.findIndex((result, index) => index > 0 && !result.ok && !(result.reason === "PRIVATE_GAMES" && result.steamId64 && result.profileUrl));
+  if (invalidAdditionalIndex !== -1) {
+    await rejectAndLog(env, interaction, "❌ Один из дополнительных Steam-аккаунтов не удалось проверить. Проверьте ссылку и открытость профиля.", "Некорректный дополнительный Steam", [
+      { name: "Ссылка", value: (steamInputs[invalidAdditionalIndex] ?? "Не указана").slice(0, 1000) }
+    ]);
+    return;
+  }
+  const steamAccounts: ApplicationSteamAccount[] = [];
+  for (const result of steamResults) {
+    if (result.ok) {
+      steamAccounts.push({ steamUrl: result.profileUrl, steamId64: result.steamId64, steamName: result.steamName, rustHours: result.rustHours });
+    } else if (result.reason === "PRIVATE_GAMES" && result.steamId64 && result.profileUrl) {
+      steamAccounts.push({
+        steamUrl: result.profileUrl,
+        steamId64: result.steamId64,
+        dataHidden: true,
+        ...(result.steamName ? { steamName: result.steamName } : {})
+      });
+    }
+  }
+  for (const account of steamAccounts) {
+    const [accountBan, accountActive] = await Promise.all([
+      getSteamBan(env, account.steamId64), getActiveApplicationBySteam(env, account.steamId64)
+    ]);
+    if (accountBan) { await finish(env, interaction.token, messages.applicationBanned(remainingHours(accountBan.expiresAt))); return; }
+    if (await isLiveApplication(env, accountActive)) { await finish(env, interaction.token, messages.steamAlreadyUsed); return; }
+  }
   if (!steam.ok && steam.reason === "PRIVATE_GAMES" && steam.steamId64 && steam.profileUrl) {
     const [steamBan, existingSteam] = await Promise.all([
       getSteamBan(env, steam.steamId64), getActiveApplicationBySteam(env, steam.steamId64)
@@ -116,6 +150,7 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
     const application = await createApplicationTicket(env, {
       applicantId: user.id, applicantUsername: user.username, age, dailyOnline, role: roleValue,
       steamUrl: steam.profileUrl, steamId64: steam.steamId64,
+      steamAccounts,
       rustHours: 0, requiredHours: requirement.minimumRustHours, realName, steamDataHidden: true,
       inventoryStatus: inventory.status,
       ...(inventory.itemCount !== undefined ? { inventoryItemCount: inventory.itemCount } : {}),
@@ -190,6 +225,7 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
   const application = await createApplicationTicket(env, {
     applicantId: user.id, applicantUsername: user.username, age, dailyOnline,
     role: roleValue, steamUrl: steam.profileUrl, steamId64: steam.steamId64,
+    steamAccounts,
     rustHours: steam.rustHours, requiredHours: requirement.minimumRustHours,
     realName, steamName: steam.steamName,
     inventoryStatus: inventory.status,
