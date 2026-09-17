@@ -1,6 +1,7 @@
 import { applicationModal, roleSelector } from "../discord/components";
 import { EPHEMERAL, InteractionResponseType, ephemeral, jsonResponse } from "../discord/interactions";
-import { getActiveApplication } from "../storage/applications";
+import { DiscordRestError, discordRest } from "../discord/rest";
+import { closeApplication, getActiveApplication } from "../storage/applications";
 import type { DiscordInteraction, Env } from "../types";
 import { messages } from "../config/messages";
 import { isRoleKey } from "../config/requirements";
@@ -10,7 +11,15 @@ export async function openApplication(interaction: DiscordInteraction, env: Env)
   const user = interactionUser(interaction);
   if (!user) return ephemeral(messages.genericError);
   const active = await getActiveApplication(env, user.id);
-  if (active) return ephemeral(messages.existingApplication(active.ticketChannelId));
+  if (active) {
+    try {
+      await discordRest(env, `/channels/${active.ticketChannelId}`);
+      return ephemeral(messages.existingApplication(active.ticketChannelId));
+    } catch (error) {
+      if (!(error instanceof DiscordRestError) || error.status !== 404) throw error;
+      await closeApplication(env, active);
+    }
+  }
   return jsonResponse({
     type: InteractionResponseType.ChannelMessageWithSource,
     data: { content: "Выберите направление, на которое хотите подать заявку:", components: roleSelector(), flags: EPHEMERAL }
