@@ -15,7 +15,7 @@ import {
   expireWarnings, issueWarning, markWipeAttendance, openUserSelection, openWipeAbsenceModal, openWipeAttendance, openWipeModal,
   openWipeSquareModal, ownWarningStatus, permanentBlacklist, removeWarningFromChannel, respondToWipe, submitWipeAbsence,
   selectedMemberInfo, selectBlacklistUser, selectWarningUser, selectWipeAttendanceUser, sendDueWipeReminders,
-  setupAdminPanel, submitWipe, submitWipeSquare
+  setupAdminPanel, submitWipe, submitWipeSquare, warnUnansweredWipes
 } from "./handlers/warnings";
 import type { DiscordInteraction, Env } from "./types";
 
@@ -87,7 +87,15 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
     if (customId === "admin:member-info-user") return selectedMemberInfo(interaction, env);
     if (customId === "admin:blacklist-user") return selectBlacklistUser(interaction, env);
     if (customId === "admin:wipe") return openWipeModal(interaction, env);
-    if (customId === "admin:wipe-attendance") return openWipeAttendance(interaction, env);
+    if (customId === "admin:wipe-attendance" || customId?.startsWith("wipe:roster:")) {
+      ctx.waitUntil(openWipeAttendance(interaction, env).then(async response => {
+        const result = await response.json<{ data: Record<string, unknown> }>();
+        await editOriginalResponse(env, interaction.token, result.data);
+      }).catch(async () => {
+        await editOriginalResponse(env, interaction.token, { content: "Не удалось получить текущий состав Discord. Проверьте доступ бота к участникам (Server Members Intent) и повторите.", components: [] });
+      }));
+      return deferredEphemeral();
+    }
     if (customId === "admin:server-bind") return openServerBinding(interaction, env);
     if (customId === "admin:clan-stats") return openUserSelection(interaction, env, "clan-stats");
     if (customId === "admin:clan-stats-user") {
@@ -100,7 +108,15 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
     if (customId?.startsWith("wipe:rsvp:")) return respondToWipe(interaction, env);
     if (customId?.startsWith("wipe:square:")) return openWipeSquareModal(interaction, env);
     if (customId?.startsWith("wipe:attendance-user:")) return selectWipeAttendanceUser(interaction, env);
-    if (customId?.startsWith("wipe:present:") || customId?.startsWith("wipe:absent:")) return markWipeAttendance(interaction, env);
+    if (customId?.startsWith("wipe:present:") || customId?.startsWith("wipe:absent:")) {
+      ctx.waitUntil(markWipeAttendance(interaction, env).then(async response => {
+        const result = await response.json<{ data: Record<string, unknown> }>();
+        await editOriginalResponse(env, interaction.token, result.data);
+      }).catch(async () => {
+        await editOriginalResponse(env, interaction.token, { content: "Не удалось завершить проверку или выдать варн. Проверьте права бота и чат нарушений.", components: [] });
+      }));
+      return deferredEphemeral();
+    }
   }
 
   if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith(CustomId.FormPrefix)) {
@@ -159,6 +175,6 @@ export default {
     }
   },
   scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
-    ctx.waitUntil(Promise.all([expireWarnings(env), expireTrialRoles(env), closeAcceptedTickets(env), sendDueWipeReminders(env), refreshPublishedServerStats(env), retryPendingOnboarding(env)]).then(() => undefined));
+    ctx.waitUntil(Promise.all([expireWarnings(env).then(() => warnUnansweredWipes(env)), expireTrialRoles(env), closeAcceptedTickets(env), sendDueWipeReminders(env), refreshPublishedServerStats(env), retryPendingOnboarding(env)]).then(() => undefined));
   }
 } satisfies ExportedHandler<Env>;

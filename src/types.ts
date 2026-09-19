@@ -219,6 +219,7 @@ export interface RustServerConfig {
 
 export interface WipeRecord {
   id: string;
+  expectedUserIds?: string[];
   project: string;
   wipeAt: number;
   gatherAt: number;
@@ -238,6 +239,7 @@ export interface WipeAttendanceRecord {
   userId: string;
   rsvp?: WipeRsvp;
   reason?: string;
+  warningIssuedAt?: number;
   present?: boolean;
   moderatorId?: string;
   updatedAt: number;
