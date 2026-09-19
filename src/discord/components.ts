@@ -198,13 +198,19 @@ export function wipeAnnouncementButtons(wipeId: string): unknown[] {
     { type: 2, style: 3, label: "Буду", custom_id: `wipe:rsvp:yes:${wipeId}`, emoji: { name: "✅" } },
     { type: 2, style: 1, label: "Опоздаю", custom_id: `wipe:rsvp:late:${wipeId}`, emoji: { name: "🕒" } },
     { type: 2, style: 4, label: "Не смогу", custom_id: `wipe:rsvp:no:${wipeId}`, emoji: { name: "❌" } },
-    { type: 2, style: 2, label: "Отметить квадрат", custom_id: `wipe:square:${wipeId}`, emoji: { name: "🗺️" } }
+    { type: 2, style: 2, label: "Указать спот", custom_id: `wipe:square:${wipeId}`, emoji: { name: "🏗️" } }
   ] }];
 }
 
 export function wipeSquareModal(wipeId: string): unknown {
-  return { title: "Отметить квадрат на карте", custom_id: `wipe:square-modal:${wipeId}`, components: [
-    { type: 1, components: [{ type: 4, custom_id: "square", label: "Квадрат", style: 1, required: true, placeholder: "Например: H14", min_length: 2, max_length: 10 }] }
+  return { title: "Спот для строительства", custom_id: `wipe:square-modal:${wipeId}`, components: [
+    { type: 1, components: [{ type: 4, custom_id: "square", label: "Квадрат спота", style: 1, required: true, placeholder: "Например: B6", min_length: 2, max_length: 10 }] }
+  ] };
+}
+
+export function wipeAbsenceModal(wipeId: string): unknown {
+  return { title: "Не смогу прийти на вайп", custom_id: `wipe:rsvp-no-modal:${wipeId}`, components: [
+    { type: 1, components: [{ type: 4, custom_id: "reason", label: "Причина отсутствия", style: 2, required: true, placeholder: "Кратко укажите причину", min_length: 3, max_length: 500 }] }
   ] };
 }
 

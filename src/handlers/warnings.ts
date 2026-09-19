@@ -1,6 +1,6 @@
 import {
   adminPanel, blacklistModal, userSelector, warnModal, warningChannelButtons, wipeAnnouncementButtons,
-  wipeAttendanceDecisionButtons, wipeAttendanceUserSelector, wipeModal, wipeSquareModal
+  wipeAbsenceModal, wipeAttendanceDecisionButtons, wipeAttendanceUserSelector, wipeModal, wipeSquareModal
 } from "../discord/components";
 import { InteractionResponseType, ephemeral, jsonResponse } from "../discord/interactions";
 import { isAdministrator, isPrivateModerator } from "../discord/permissions";
@@ -45,24 +45,36 @@ async function getWipeAttendance(env: Env, wipeId: string): Promise<WipeAttendan
 }
 
 function wipeMessage(record: WipeRecord, attendance: WipeAttendanceRecord[]): { content: string; embeds: DiscordEmbed[]; components: unknown[] } {
-  const yes = attendance.filter((item) => item.rsvp === "yes").length;
-  const late = attendance.filter((item) => item.rsvp === "late").length;
-  const no = attendance.filter((item) => item.rsvp === "no").length;
+  const yes = attendance.filter((item) => item.rsvp === "yes");
+  const late = attendance.filter((item) => item.rsvp === "late");
+  const no = attendance.filter((item) => item.rsvp === "no");
+  const playerList = (items: WipeAttendanceRecord[], withReason = false): string => {
+    if (!items.length) return "—";
+    const lines = items.map((item) => `<@${item.userId}>${withReason && item.reason ? ` — ${item.reason}` : ""}`);
+    let result = "";
+    for (const line of lines) {
+      if (`${result}${result ? "\n" : ""}${line}`.length > 1000) return `${result}\n…и ещё ${lines.length - result.split("\n").length}`;
+      result += `${result ? "\n" : ""}${line}`;
+    }
+    return result;
+  };
   const mapLine = record.mapUrl ? `\n[Открыть карту](${record.mapUrl})` : "";
-  const square = record.mapSquare ? `🟥 **Отмеченный квадрат: ${record.mapSquare}**` : "Квадрат пока не отмечен";
+  const square = record.mapSquare
+    ? `🏗️ **Спот для строительства: ${record.mapSquare}**`
+    : "🏗️ **Спот для строительства:** ещё не указан";
   const embed: DiscordEmbed = {
     title: `📢 Вайп: ${record.project}`,
     description: `**Сбор:** <t:${Math.floor(record.gatherAt / 1000)}:F>\n**Вайп:** <t:${Math.floor(record.wipeAt / 1000)}:F>\n**Подключение:** \`${record.connect}\`\n${square}${mapLine}`,
     color: 0xe67e22,
     fields: [
-      { name: "✅ Будут", value: String(yes), inline: true },
-      { name: "🕒 Опоздают", value: String(late), inline: true },
-      { name: "❌ Не смогут", value: String(no), inline: true }
+      { name: `✅ Будут — ${yes.length}`, value: playerList(yes) },
+      { name: `🕒 Опоздают — ${late.length}`, value: playerList(late) },
+      { name: `❌ Не смогут — ${no.length}`, value: playerList(no, true) }
     ],
     ...(record.mapUrl ? { url: record.mapUrl } : {}),
     ...(record.mapUrl && isImageUrl(record.mapUrl) ? { image: { url: record.mapUrl } } : {})
   };
-  return { content: "Выберите свой статус на вайп. Колер может отметить квадрат на карте.", embeds: [embed], components: wipeAnnouncementButtons(record.id) };
+  return { content: "Выберите статус на вайп. Повторное нажатие изменит ваш ответ. Для «Не смогу» потребуется причина.", embeds: [embed], components: wipeAnnouncementButtons(record.id) };
 }
 
 async function refreshWipeMessage(env: Env, record: WipeRecord): Promise<void> {
@@ -86,6 +98,20 @@ async function latestReviewableWipe(env: Env): Promise<WipeRecord | null> {
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
   return records.sort((a, b) => b.wipeAt - a.wipeAt)[0] ?? null;
+}
+
+async function nextPendingWipe(env: Env): Promise<WipeRecord | null> {
+  const records: WipeRecord[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.APPLICATIONS.list({ prefix: "wipe:", ...(cursor ? { cursor } : {}) });
+    for (const key of page.keys) {
+      const record = await env.APPLICATIONS.get<WipeRecord>(key.name, "json");
+      if (record && /^[0-9a-f-]{36}$/i.test(record.id) && Date.now() < record.wipeAt + FIVE_HOURS) records.push(record);
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  return records.sort((a, b) => a.wipeAt - b.wipeAt)[0] ?? null;
 }
 
 export async function setupAdminPanel(i: DiscordInteraction, env: Env): Promise<Response> {
@@ -227,7 +253,7 @@ export async function submitWipe(i: DiscordInteraction, env: Env): Promise<Respo
 
 export async function respondToWipe(i: DiscordInteraction, env: Env): Promise<Response> {
   const user = interactionUser(i);
-  const match = /^wipe:rsvp:(yes|late|no):([0-9a-f-]{36})$/i.exec(i.data?.custom_id ?? "");
+  const match = /^wipe:rsvp:(yes|late):([0-9a-f-]{36})$/i.exec(i.data?.custom_id ?? "");
   if (!user || !match || i.guild_id !== env.PRIVATE_GUILD_ID) return ephemeral("❌ Не удалось сохранить ответ.");
   const rsvp = match[1] as WipeRsvp; const wipeId = match[2];
   if (!wipeId) return ephemeral("❌ Не удалось определить вайп.");
@@ -235,15 +261,46 @@ export async function respondToWipe(i: DiscordInteraction, env: Env): Promise<Re
   if (!wipe) return ephemeral("⚠️ Этот вайп больше не активен.");
   const key = attendanceKey(wipeId, user.id);
   const existing = await env.APPLICATIONS.get<WipeAttendanceRecord>(key, "json");
-  const record: WipeAttendanceRecord = { ...(existing ?? {}), wipeId, userId: user.id, rsvp, updatedAt: Date.now() };
+  const record: WipeAttendanceRecord = {
+    wipeId, userId: user.id, rsvp, updatedAt: Date.now(),
+    ...(existing?.present !== undefined ? { present: existing.present } : {}),
+    ...(existing?.moderatorId ? { moderatorId: existing.moderatorId } : {})
+  };
   await env.APPLICATIONS.put(key, JSON.stringify(record), { expirationTtl: 2_592_000 });
   await refreshWipeMessage(env, wipe);
   const labels: Record<WipeRsvp, string> = { yes: "✅ Буду", late: "🕒 Опоздаю", no: "❌ Не смогу" };
-  return ephemeral(`Ответ сохранён: **${labels[rsvp]}**.`);
+  const changed = existing?.rsvp && existing.rsvp !== rsvp;
+  return ephemeral(`${changed ? "Ответ изменён" : "Ответ сохранён"}: **${labels[rsvp]}**. Его можно поменять повторным нажатием.`);
+}
+
+export function openWipeAbsenceModal(i: DiscordInteraction, env: Env): Response {
+  const user = interactionUser(i);
+  const wipeId = (i.data?.custom_id ?? "").slice("wipe:rsvp:no:".length);
+  if (!user || i.guild_id !== env.PRIVATE_GUILD_ID || !/^[0-9a-f-]{36}$/i.test(wipeId)) return ephemeral("❌ Не удалось определить вайп.");
+  return jsonResponse({ type: InteractionResponseType.Modal, data: wipeAbsenceModal(wipeId) });
+}
+
+export async function submitWipeAbsence(i: DiscordInteraction, env: Env): Promise<Response> {
+  const user = interactionUser(i);
+  const wipeId = (i.data?.custom_id ?? "").slice("wipe:rsvp-no-modal:".length);
+  const reason = modalValue(i, "reason")?.trim();
+  if (!user || i.guild_id !== env.PRIVATE_GUILD_ID || !/^[0-9a-f-]{36}$/i.test(wipeId) || !reason) return ephemeral("❌ Укажите причину отсутствия.");
+  const wipe = await env.APPLICATIONS.get<WipeRecord>(wipeKey(wipeId), "json");
+  if (!wipe) return ephemeral("⚠️ Этот вайп больше не активен.");
+  const key = attendanceKey(wipeId, user.id);
+  const existing = await env.APPLICATIONS.get<WipeAttendanceRecord>(key, "json");
+  const record: WipeAttendanceRecord = {
+    wipeId, userId: user.id, rsvp: "no", reason, updatedAt: Date.now(),
+    ...(existing?.present !== undefined ? { present: existing.present } : {}),
+    ...(existing?.moderatorId ? { moderatorId: existing.moderatorId } : {})
+  };
+  await env.APPLICATIONS.put(key, JSON.stringify(record), { expirationTtl: 2_592_000 });
+  await refreshWipeMessage(env, wipe);
+  return ephemeral(`${existing?.rsvp && existing.rsvp !== "no" ? "Ответ изменён" : "Ответ сохранён"}: **❌ Не смогу**. Причина: ${reason}`);
 }
 
 export function openWipeSquareModal(i: DiscordInteraction, env: Env): Response {
-  if (!isPrivateModerator(i, env)) return ephemeral("❌ Отметить квадрат может только Staff/колер.");
+  if (!isPrivateModerator(i, env)) return ephemeral("❌ Указать спот может только Staff/колер.");
   const wipeId = (i.data?.custom_id ?? "").slice("wipe:square:".length);
   return /^[0-9a-f-]{36}$/i.test(wipeId)
     ? jsonResponse({ type: InteractionResponseType.Modal, data: wipeSquareModal(wipeId) })
@@ -251,7 +308,7 @@ export function openWipeSquareModal(i: DiscordInteraction, env: Env): Response {
 }
 
 export async function submitWipeSquare(i: DiscordInteraction, env: Env): Promise<Response> {
-  if (!isPrivateModerator(i, env)) return ephemeral("❌ Отметить квадрат может только Staff/колер.");
+  if (!isPrivateModerator(i, env)) return ephemeral("❌ Указать спот может только Staff/колер.");
   const wipeId = (i.data?.custom_id ?? "").slice("wipe:square-modal:".length);
   const square = modalValue(i, "square")?.trim().toUpperCase();
   if (!square || !/^[A-ZА-ЯЁ]{1,3}\s?-?\d{1,3}$/u.test(square)) return ephemeral("❌ Укажите квадрат в формате H14.");
@@ -261,13 +318,15 @@ export async function submitWipeSquare(i: DiscordInteraction, env: Env): Promise
   wipe.mapSquare = normalizedSquare;
   await env.APPLICATIONS.put(wipeKey(wipe.id), JSON.stringify(wipe), { expirationTtl: 2_592_000 });
   await refreshWipeMessage(env, wipe);
-  return ephemeral(`✅ На карточке вайпа отмечен квадрат **${normalizedSquare}**.`);
+  return ephemeral(`✅ Спот для строительства указан: **${normalizedSquare}**.`);
 }
 
 export async function openWipeAttendance(i: DiscordInteraction, env: Env): Promise<Response> {
   if (!isPrivateModerator(i, env)) return ephemeral("❌ Недостаточно прав.");
-  const wipe = await latestReviewableWipe(env);
-  if (!wipe) return ephemeral("⚠️ Пока нет вайпа, после которого прошло 5 часов.");
+  const reviewable = await latestReviewableWipe(env);
+  const wipe = reviewable ?? await nextPendingWipe(env);
+  if (!wipe) return ephemeral("⚠️ Сейчас нет запланированного вайпа.");
+  const canReview = Date.now() >= wipe.wipeAt + FIVE_HOURS;
   const records = await getWipeAttendance(env, wipe.id);
   const members: MemberLink[] = [];
   let cursor: string | undefined;
@@ -281,13 +340,16 @@ export async function openWipeAttendance(i: DiscordInteraction, env: Env): Promi
   } while (cursor);
   const lines = members.slice(0, 35).map((member) => {
     const result = records.find((record) => record.userId === member.discordUserId);
-    const mark = result?.present === true ? "✅ зашёл" : result?.present === false ? "⚠️ не зашёл" : result?.rsvp === "yes" ? "🟢 обещал быть" : result?.rsvp === "late" ? "🕒 опоздает" : result?.rsvp === "no" ? "🔴 не сможет" : "⚪ нет ответа";
+    const mark = result?.present === true ? "✅ зашёл" : result?.present === false ? "⚠️ не зашёл" : result?.rsvp === "yes" ? "🟢 будет" : result?.rsvp === "late" ? "🕒 опоздает" : result?.rsvp === "no" ? `🔴 не сможет${result.reason ? ` — ${result.reason}` : ""}` : "⚪ нет ответа";
     return `<@${member.discordUserId}> — ${mark}`;
   });
   const overflow = members.length > 35 ? `\n…и ещё ${members.length - 35}` : "";
+  const reviewText = canReview
+    ? "\n\nВыберите участника и отметьте результат:"
+    : `\n\nПроверка фактической явки откроется <t:${Math.floor((wipe.wipeAt + FIVE_HOURS) / 1000)}:R>. До этого здесь отображается план.`;
   return jsonResponse({ type: InteractionResponseType.ChannelMessageWithSource, data: {
-    content: `📋 **Явка на вайп: ${wipe.project}**\n${lines.join("\n") || "Нет участников со Steam-привязкой."}${overflow}\n\nВыберите участника и отметьте результат:`,
-    components: wipeAttendanceUserSelector(wipe.id), flags: 64, allowed_mentions: { parse: [] }
+    content: `📋 **${canReview ? "Проверка явки" : "Запланированный вайп"}: ${wipe.project}**\nВайп: <t:${Math.floor(wipe.wipeAt / 1000)}:F>\n\n${lines.join("\n") || "Нет участников со Steam-привязкой."}${overflow}${reviewText}`,
+    components: canReview ? wipeAttendanceUserSelector(wipe.id) : [], flags: 64, allowed_mentions: { parse: [] }
   } });
 }
 
@@ -343,7 +405,7 @@ export async function sendDueWipeReminders(env: Env): Promise<void> {
   const page = await env.APPLICATIONS.list({ prefix: "wipe:" });
   for (const key of page.keys) { const item = await env.APPLICATIONS.get<WipeRecord>(key.name, "json");
     if (!item || item.sent || item.notifyAt > Date.now()) continue;
-    await sendChannelMessage(env, env.WIPE_CHANNEL_ID, { content: `@everyone 📢 **Скоро сбор на вайп: ${item.project}**\nСбор: <t:${Math.floor(item.gatherAt / 1000)}:R>\nВайп: <t:${Math.floor(item.wipeAt / 1000)}:F>\nПодключение: \`${item.connect}\`${item.mapSquare ? `\nКвадрат: **${item.mapSquare}**` : ""}`, allowed_mentions: { parse: ["everyone"] } });
+    await sendChannelMessage(env, env.WIPE_CHANNEL_ID, { content: `@everyone 📢 **Скоро сбор на вайп: ${item.project}**\nСбор: <t:${Math.floor(item.gatherAt / 1000)}:R>\nВайп: <t:${Math.floor(item.wipeAt / 1000)}:F>\nПодключение: \`${item.connect}\`${item.mapSquare ? `\n🏗️ Спот для строительства: **${item.mapSquare}**` : ""}`, allowed_mentions: { parse: ["everyone"] } });
     item.sent = true; await env.APPLICATIONS.put(key.name, JSON.stringify(item), { expirationTtl: 604800 });
   }
 }

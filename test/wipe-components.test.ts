@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  ageRejectionActions, wipeAnnouncementButtons, wipeAttendanceDecisionButtons, wipeModal
+  ageRejectionActions, wipeAbsenceModal, wipeAnnouncementButtons, wipeAttendanceDecisionButtons, wipeModal
 } from "../src/discord/components";
 
 type Component = { custom_id?: string; components?: Component[] };
@@ -27,6 +27,11 @@ describe("wipe controls", () => {
       "wipe:rsvp:no:wipe-id",
       "wipe:square:wipe-id"
     ]);
+  });
+
+  it("requires a reason when a player cannot attend", () => {
+    const modal = wipeAbsenceModal("wipe-id") as Modal;
+    expect(ids(modal.components)).toEqual(["reason"]);
   });
 
   it("offers present and absent decisions", () => {

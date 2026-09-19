@@ -12,8 +12,8 @@ import { claimRoles, expireTrialRoles } from "./handlers/privateOnboarding";
 import { checkClanPlayer, checkPlayer } from "./handlers/playerCheck";
 import { bindServer, openServerBinding, publishServerStats, refreshPublishedServerStats } from "./handlers/serverStats";
 import {
-  expireWarnings, issueWarning, markWipeAttendance, openUserSelection, openWipeAttendance, openWipeModal,
-  openWipeSquareModal, ownWarningStatus, permanentBlacklist, removeWarningFromChannel, respondToWipe,
+  expireWarnings, issueWarning, markWipeAttendance, openUserSelection, openWipeAbsenceModal, openWipeAttendance, openWipeModal,
+  openWipeSquareModal, ownWarningStatus, permanentBlacklist, removeWarningFromChannel, respondToWipe, submitWipeAbsence,
   selectedMemberInfo, selectBlacklistUser, selectWarningUser, selectWipeAttendanceUser, sendDueWipeReminders,
   setupAdminPanel, submitWipe, submitWipeSquare
 } from "./handlers/warnings";
@@ -96,6 +96,7 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
     }
     if (customId === "admin:server-publish") return publishServerStats(interaction, env);
     if (customId?.startsWith("warning:remove:")) return removeWarningFromChannel(interaction, env);
+    if (customId?.startsWith("wipe:rsvp:no:")) return openWipeAbsenceModal(interaction, env);
     if (customId?.startsWith("wipe:rsvp:")) return respondToWipe(interaction, env);
     if (customId?.startsWith("wipe:square:")) return openWipeSquareModal(interaction, env);
     if (customId?.startsWith("wipe:attendance-user:")) return selectWipeAttendanceUser(interaction, env);
@@ -129,6 +130,7 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
   }
   if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith("admin:warn-modal:")) return issueWarning(interaction, env);
   if (interaction.type === InteractionType.ModalSubmit && customId === "admin:wipe-modal") return submitWipe(interaction, env);
+  if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith("wipe:rsvp-no-modal:")) return submitWipeAbsence(interaction, env);
   if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith("wipe:square-modal:")) return submitWipeSquare(interaction, env);
   if (interaction.type === InteractionType.ModalSubmit && customId === "admin:server-bind-modal") return bindServer(interaction, env);
   if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith("admin:blacklist-modal:")) return permanentBlacklist(interaction, env);

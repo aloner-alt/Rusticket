@@ -237,6 +237,7 @@ export interface WipeAttendanceRecord {
   wipeId: string;
   userId: string;
   rsvp?: WipeRsvp;
+  reason?: string;
   present?: boolean;
   moderatorId?: string;
   updatedAt: number;
