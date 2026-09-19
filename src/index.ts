@@ -3,10 +3,10 @@ import { CustomId } from "./discord/components";
 import { EPHEMERAL, InteractionResponseType, InteractionType, deferredEphemeral, deferredPublic, ephemeral, jsonResponse } from "./discord/interactions";
 import { editOriginalResponse } from "./discord/rest";
 import { verifyDiscordRequest } from "./discord/verification";
-import { openApplication, selectRole } from "./handlers/openApplication";
+import { openApplication, openSteamAccounts, saveApplicationDetails, selectRole } from "./handlers/openApplication";
 import { setupRecruitment } from "./handlers/setupRecruitment";
 import { submitApplication } from "./handlers/submitApplication";
-import { acceptApplication, cancelClose, closeTicket, confirmClose, inviteCandidateToVoice, openRejectModal, rejectApplication } from "./handlers/staffActions";
+import { acceptApplication, cancelClose, closeTicket, confirmClose, inviteCandidateToVoice, openRejectModal, rejectApplication, retryPendingOnboarding } from "./handlers/staffActions";
 import { banFromReview, createExceptionTicket, openExceptionModal, unbanFromReview, unbanUserFromLog } from "./handlers/reviewModeration";
 import { claimRoles } from "./handlers/privateOnboarding";
 import { checkClanPlayer, checkPlayer } from "./handlers/playerCheck";
@@ -58,6 +58,7 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
   if (interaction.type === InteractionType.MessageComponent) {
     if (customId === CustomId.Open) return openApplication(interaction, env);
     if (customId === CustomId.Role) return selectRole(interaction);
+    if (customId?.startsWith(CustomId.SteamStepPrefix)) return openSteamAccounts(interaction, env);
     if (customId === CustomId.Accept) return acceptApplication(interaction, env);
     if (customId === CustomId.Reject) return openRejectModal(interaction, env);
     if (customId === CustomId.InviteVoice) return inviteCandidateToVoice(interaction, env);
@@ -87,7 +88,12 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
 
   if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith(CustomId.FormPrefix)) {
     const role = customId.slice(CustomId.FormPrefix.length);
-    ctx.waitUntil(submitApplication(interaction, env, role).catch(async (error: unknown) => {
+    return saveApplicationDetails(interaction, env, role);
+  }
+
+  if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith(CustomId.SteamFormPrefix)) {
+    const draftId = customId.slice(CustomId.SteamFormPrefix.length);
+    ctx.waitUntil(submitApplication(interaction, env, draftId).catch(async (error: unknown) => {
       console.error("Application submission failed", error instanceof Error ? error.message : "unknown error");
       const url = `https://discord.com/api/v10/webhooks/${env.DISCORD_APPLICATION_ID}/${interaction.token}/messages/@original`;
       await fetch(url, {
@@ -134,6 +140,6 @@ export default {
     }
   },
   scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
-    ctx.waitUntil(Promise.all([expireWarnings(env), sendDueWipeReminders(env), refreshPublishedServerStats(env)]).then(() => undefined));
+    ctx.waitUntil(Promise.all([expireWarnings(env), sendDueWipeReminders(env), refreshPublishedServerStats(env), retryPendingOnboarding(env)]).then(() => undefined));
   }
 } satisfies ExportedHandler<Env>;

@@ -134,6 +134,19 @@ export interface ApplicationRecord {
   decidedAt?: string;
   staffId?: string;
   rejectionReason?: string;
+  onboardingDeliveredAt?: string;
+  onboardingAttempts?: number;
+}
+
+export interface ApplicationDraft {
+  id: string;
+  applicantId: string;
+  applicantUsername: string;
+  age: number;
+  dailyOnline: number;
+  role: RoleKey;
+  realName: string;
+  applicantComment?: string;
 }
 
 export interface BanRecord {

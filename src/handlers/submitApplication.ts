@@ -6,11 +6,10 @@ import { verifySteamProfile } from "../steam/steamClient";
 import { estimateRustInventory } from "../steam/inventory";
 import {
   banApplicant, closeApplication, getActiveApplication, getActiveApplicationBySteam, getSteamBan,
-  getUserBan, isCoolingDown, saveRejectedReview
+  getUserBan, isCoolingDown, saveRejectedReview, getApplicationDraft, deleteApplicationDraft
 } from "../storage/applications";
 import type { ApplicationSteamAccount, DiscordInteraction, Env, RejectedReview } from "../types";
 import { logEvent } from "../utils/logger";
-import { parseStrictInteger } from "../utils/validation";
 import { interactionUser, modalValue } from "./helpers";
 import { createApplicationTicket } from "./ticketService";
 
@@ -55,12 +54,15 @@ async function rejectAndLog(
   ], 0xe67e22, components);
 }
 
-export async function submitApplication(interaction: DiscordInteraction, env: Env, roleValue: string): Promise<void> {
+export async function submitApplication(interaction: DiscordInteraction, env: Env, draftId: string): Promise<void> {
   const user = interactionUser(interaction);
-  if (!user || !isRoleKey(roleValue)) {
-    await finish(env, interaction.token, messages.invalidData);
+  const draft = await getApplicationDraft(env, draftId);
+  if (!user || !draft || draft.applicantId !== user.id || !isRoleKey(draft.role)) {
+    await finish(env, interaction.token, "⚠️ Анкета истекла. Нажмите «Подать заявку» и заполните её заново.");
     return;
   }
+  const { age, dailyOnline, realName, applicantComment } = draft;
+  const roleValue = draft.role;
 
   const userBan = await getUserBan(env, user.id);
   if (userBan) {
@@ -78,17 +80,13 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
     return;
   }
 
-  const age = parseStrictInteger(modalValue(interaction, "age") ?? "");
-  const dailyOnline = parseStrictInteger(modalValue(interaction, "daily_online") ?? "");
-  const steamRawInput = modalValue(interaction, "steam") ?? "";
-  const steamInputs = [...new Set(steamRawInput.split(/[\s,;]+/).map((value) => value.trim()).filter(Boolean))];
+  const steamInputs = [...new Set(Array.from({ length: 5 }, (_, index) => modalValue(interaction, `steam_${index + 1}`)?.trim() ?? "").filter(Boolean))];
   const steamInput = steamInputs[0] ?? "";
-  const realName = modalValue(interaction, "real_name")?.trim();
-  const applicantComment = modalValue(interaction, "comment")?.trim() || undefined;
-  if (age === null || dailyOnline === null || age > 99 || dailyOnline > 24 || !realName || steamInputs.length === 0 || steamInputs.length > 5) {
+  if (steamInputs.length === 0) {
     await rejectAndLog(env, interaction, messages.invalidData, "Некорректные данные формы");
     return;
   }
+  await deleteApplicationDraft(env, draftId);
   if (age < MINIMUM_AGE) {
     await rejectAndLog(
       env,

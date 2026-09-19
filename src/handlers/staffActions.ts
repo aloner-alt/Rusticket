@@ -46,6 +46,46 @@ function privateInviteButton(inviteUrl: string): unknown[] {
   return [{ type: 1, components: [{ type: 2, style: 5, label: "Войти на .int Private", emoji: { name: "🔐" }, url: inviteUrl }] }];
 }
 
+async function deliverPrivateOnboarding(env: Env, app: ApplicationRecord): Promise<boolean> {
+  const staffLine = app.staffId ? `\n\nРешение принял: <@${app.staffId}>` : "";
+  await sendChannelMessage(env, app.ticketChannelId, {
+    content: `<@${app.applicantId}>\n\n${privateOnboardingMessage(env.PRIVATE_INVITE_URL)}${staffLine}`,
+    components: privateInviteButton(env.PRIVATE_INVITE_URL),
+    allowed_mentions: { users: [app.applicantId, ...(app.staffId ? [app.staffId] : [])] }
+  });
+  let dmDelivered = false;
+  try {
+    const dm = await discordRest<{ id: string }>(env, "/users/@me/channels", { method: "POST", body: JSON.stringify({ recipient_id: app.applicantId }) });
+    await sendChannelMessage(env, dm.id, {
+      content: privateOnboardingMessage(env.PRIVATE_INVITE_URL),
+      components: privateInviteButton(env.PRIVATE_INVITE_URL)
+    });
+    dmDelivered = true;
+  } catch { /* The ticket message is the guaranteed delivery channel. */ }
+  app.onboardingDeliveredAt = new Date().toISOString();
+  await saveAcceptedApplication(env, app);
+  return dmDelivered;
+}
+
+async function recordOnboardingFailure(env: Env, app: ApplicationRecord): Promise<void> {
+  app.onboardingAttempts = (app.onboardingAttempts ?? 0) + 1;
+  await saveAcceptedApplication(env, app);
+}
+
+export async function retryPendingOnboarding(env: Env): Promise<void> {
+  let cursor: string | undefined;
+  do {
+    const page = await env.APPLICATIONS.list({ prefix: "accepted:", ...(cursor ? { cursor } : {}) });
+    for (const key of page.keys) {
+      const app = await env.APPLICATIONS.get<ApplicationRecord>(key.name, "json");
+      if (!app || app.status !== "ACCEPTED" || app.onboardingDeliveredAt || (app.onboardingAttempts ?? 0) >= 6) continue;
+      try { await deliverPrivateOnboarding(env, app); }
+      catch { await recordOnboardingFailure(env, app); }
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+}
+
 export async function inviteCandidateToVoice(interaction: DiscordInteraction, env: Env): Promise<Response> {
   if (!isStaff(interaction, env)) return ephemeral(messages.noPermission);
   const app = await requireApplication(interaction, env);
@@ -85,29 +125,27 @@ export async function acceptApplication(interaction: DiscordInteraction, env: En
   await saveApplication(env, app);
   await saveAcceptedApplication(env, app);
   await updateCard(env, app);
-  await discordRest(env, `/guilds/${env.DISCORD_GUILD_ID}/members/${app.applicantId}/roles/${env.PUBLIC_MAIN_ROLE_ID}`, { method: "PUT" });
-  await sendChannelMessage(env, app.ticketChannelId, {
-    content: `<@${app.applicantId}>\n\n${privateOnboardingMessage(env.PRIVATE_INVITE_URL)}\n\nРешение принял: <@${staff.id}>`,
-    components: privateInviteButton(env.PRIVATE_INVITE_URL),
-    allowed_mentions: { users: [app.applicantId, staff.id] }
-  });
-  const dmDelivered = await (async () => {
-    try {
-      const dm = await discordRest<{ id: string }>(env, "/users/@me/channels", { method: "POST", body: JSON.stringify({ recipient_id: app.applicantId }) });
-      await sendChannelMessage(env, dm.id, {
-        content: privateOnboardingMessage(env.PRIVATE_INVITE_URL),
-        components: privateInviteButton(env.PRIVATE_INVITE_URL)
-      });
-      return true;
-    } catch { return false; }
-  })();
+  let dmDelivered = false;
+  let onboardingDelivered = false;
+  try {
+    dmDelivered = await deliverPrivateOnboarding(env, app);
+    onboardingDelivered = true;
+  } catch {
+    await recordOnboardingFailure(env, app);
+  }
+  let publicRoleDelivered = true;
+  try {
+    await discordRest(env, `/guilds/${env.DISCORD_GUILD_ID}/members/${app.applicantId}/roles/${env.PUBLIC_MAIN_ROLE_ID}`, { method: "PUT" });
+  } catch { publicRoleDelivered = false; }
   await logEvent(env, "✅ Заявка принята", [
     { name: "Кандидат", value: `<@${app.applicantId}>` },
     { name: "Staff", value: `<@${staff.id}>` },
-    { name: "Канал", value: `<#${app.ticketChannelId}>` }
-    , { name: "Ссылка в ЛС", value: dmDelivered ? "✅ Отправлена" : "⚠️ ЛС закрыты; ссылка есть в тикете" }
+    { name: "Канал", value: `<#${app.ticketChannelId}>` },
+    { name: "Инструкция в тикете", value: onboardingDelivered ? "✅ Отправлена" : "⚠️ Будет отправлена повторно автоматически" },
+    { name: "Ссылка в ЛС", value: dmDelivered ? "✅ Отправлена" : "⚠️ ЛС закрыты или временно недоступны" },
+    { name: "Main роль", value: publicRoleDelivered ? "✅ Выдана" : "⚠️ Discord отклонил выдачу; проверьте права и иерархию ролей" }
   ], 0x2ecc71);
-  return ephemeral("✅ Заявка принята.");
+  return ephemeral(onboardingDelivered ? "✅ Заявка принята, ссылка и команда /claim отправлены." : "✅ Заявка принята. Discord временно не принял сообщение; бот повторит отправку автоматически.");
 }
 
 export function openRejectModal(interaction: DiscordInteraction, env: Env): Response {

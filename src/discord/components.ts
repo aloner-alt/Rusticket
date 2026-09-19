@@ -5,6 +5,8 @@ export const CustomId = {
   Open: "application:open",
   Role: "application:role",
   FormPrefix: "application:form:",
+  SteamStepPrefix: "application:steam-step:",
+  SteamFormPrefix: "application:steam-form:",
   Accept: "application:accept",
   Reject: "application:reject",
   RejectModal: "application:reject-modal",
@@ -50,11 +52,40 @@ export function applicationModal(role: string): unknown {
     custom_id: `${CustomId.FormPrefix}${role}`,
     components: [
       { type: 1, components: [{ type: 4, custom_id: "age", label: "Возраст", style: 1, placeholder: "Например: 18", required: true, min_length: 2, max_length: 2 }] },
-      { type: 1, components: [{ type: 4, custom_id: "steam", label: "Steam-аккаунты (до 5)", style: 2, placeholder: "Каждая ссылка с новой строки или через запятую", required: true, max_length: 1000 }] },
       { type: 1, components: [{ type: 4, custom_id: "daily_online", label: "Средний онлайн в сутки", style: 1, placeholder: "Например: 6", required: true, max_length: 2 }] },
       { type: 1, components: [{ type: 4, custom_id: "real_name", label: "Ваше имя", style: 1, placeholder: "Например: Богдан", required: true, min_length: 2, max_length: 32 }] },
       { type: 1, components: [{ type: 4, custom_id: "comment", label: "Комментарий для рекрутёра", style: 2, placeholder: "Расскажите о себе или укажите важные детали", required: false, max_length: 1000 }] }
     ]
+  };
+}
+
+export function steamStepButton(draftId: string): unknown[] {
+  return [{ type: 1, components: [{
+    type: 2,
+    style: 1,
+    label: "Указать Steam-аккаунты",
+    emoji: { name: "🎮" },
+    custom_id: `${CustomId.SteamStepPrefix}${draftId}`
+  }] }];
+}
+
+export function steamAccountsModal(draftId: string): unknown {
+  const field = (number: number, required: boolean) => ({
+    type: 1,
+    components: [{
+      type: 4,
+      custom_id: `steam_${number}`,
+      label: number === 1 ? "Основной Steam-аккаунт" : `Дополнительный Steam-аккаунт ${number}`,
+      style: 1,
+      placeholder: "SteamID64 или ссылка на профиль",
+      required,
+      max_length: 200
+    }]
+  });
+  return {
+    title: "Steam-аккаунты",
+    custom_id: `${CustomId.SteamFormPrefix}${draftId}`,
+    components: [field(1, true), field(2, false), field(3, false), field(4, false), field(5, false)]
   };
 }
 

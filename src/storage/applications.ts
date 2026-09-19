@@ -1,5 +1,5 @@
 import { COOLDOWN_SECONDS } from "../config/requirements";
-import type { ApplicationRecord, BanRecord, Env, MemberLink, RejectedReview, RustServerConfig, WarningRecord } from "../types";
+import type { ApplicationDraft, ApplicationRecord, BanRecord, Env, MemberLink, RejectedReview, RustServerConfig, WarningRecord } from "../types";
 
 const applicantKey = (userId: string) => `active:${userId}`;
 const channelKey = (channelId: string) => `channel:${channelId}`;
@@ -11,6 +11,7 @@ const reviewKey = (id: string) => `review:${id}`;
 const memberKey = (userId: string) => `member:${userId}`;
 const warningKey = (userId: string) => `warning:${userId}`;
 const acceptedKey = (userId: string) => `accepted:${userId}`;
+const draftKey = (id: string) => `draft:${id}`;
 const SERVER_CONFIG_KEY = "rust-server:primary";
 
 export async function isCoolingDown(env: Env, userId: string): Promise<boolean> {
@@ -100,6 +101,18 @@ export function getAcceptedApplication(env: Env, userId: string): Promise<Applic
 
 export function deleteAcceptedApplication(env: Env, userId: string): Promise<void> {
   return env.APPLICATIONS.delete(acceptedKey(userId));
+}
+
+export function saveApplicationDraft(env: Env, draft: ApplicationDraft): Promise<void> {
+  return env.APPLICATIONS.put(draftKey(draft.id), JSON.stringify(draft), { expirationTtl: 900 });
+}
+
+export function getApplicationDraft(env: Env, id: string): Promise<ApplicationDraft | null> {
+  return env.APPLICATIONS.get<ApplicationDraft>(draftKey(id), "json");
+}
+
+export function deleteApplicationDraft(env: Env, id: string): Promise<void> {
+  return env.APPLICATIONS.delete(draftKey(id));
 }
 
 export function getRustServerConfig(env: Env): Promise<RustServerConfig | null> {
