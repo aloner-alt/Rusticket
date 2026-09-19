@@ -151,7 +151,8 @@ export function adminPanel(): { embeds: DiscordEmbed[]; components: unknown[] } 
       { type: 2, style: 4, label: "Добавить в ЧС навсегда", custom_id: "admin:blacklist", emoji: { name: "⛔" } },
       { type: 2, style: 1, label: "Привязать Rust-сервер", custom_id: "admin:server-bind", emoji: { name: "🎮" } },
       { type: 2, style: 2, label: "Статистика игрока клана", custom_id: "admin:clan-stats", emoji: { name: "📊" } },
-      { type: 2, style: 3, label: "Обновить Vipe Info", custom_id: "admin:server-publish", emoji: { name: "🔄" } }
+      { type: 2, style: 3, label: "Обновить Vipe Info", custom_id: "admin:server-publish", emoji: { name: "🔄" } },
+      { type: 2, style: 5, label: "Стата .int на Mirage", url: "https://miragerust.gg/clan/190", emoji: { name: "📈" } }
     ] }]
   };
 }

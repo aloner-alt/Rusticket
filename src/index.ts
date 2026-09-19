@@ -6,9 +6,9 @@ import { verifyDiscordRequest } from "./discord/verification";
 import { openApplication, openSteamAccounts, saveApplicationDetails, selectRole } from "./handlers/openApplication";
 import { setupRecruitment } from "./handlers/setupRecruitment";
 import { submitApplication } from "./handlers/submitApplication";
-import { acceptApplication, cancelClose, closeTicket, confirmClose, inviteCandidateToVoice, openRejectModal, rejectApplication, retryPendingOnboarding } from "./handlers/staffActions";
+import { acceptApplication, cancelClose, closeAcceptedTickets, closeTicket, confirmClose, inviteCandidateToVoice, openRejectModal, rejectApplication, retryPendingOnboarding } from "./handlers/staffActions";
 import { banFromReview, createExceptionTicket, openExceptionModal, unbanFromReview, unbanUserFromLog } from "./handlers/reviewModeration";
-import { claimRoles } from "./handlers/privateOnboarding";
+import { claimRoles, expireTrialRoles } from "./handlers/privateOnboarding";
 import { checkClanPlayer, checkPlayer } from "./handlers/playerCheck";
 import { bindServer, openServerBinding, publishServerStats, refreshPublishedServerStats } from "./handlers/serverStats";
 import { expireWarnings, issueWarning, openUserSelection, openWipeModal, ownWarningStatus, permanentBlacklist, removeWarningFromChannel, selectedMemberInfo, selectBlacklistUser, selectWarningUser, sendDueWipeReminders, setupAdminPanel, submitWipe } from "./handlers/warnings";
@@ -23,7 +23,7 @@ function validateEnvironment(env: Env): void {
     "DISCORD_APPLICATION_ID", "DISCORD_PUBLIC_KEY", "DISCORD_BOT_TOKEN", "DISCORD_GUILD_ID",
     "STEAM_API_KEY", "TICKETS_CHANNEL_ID", "TICKETS_CATEGORY_ID", "LOG_CHANNEL_ID", "APPLICATIONS",
     "PRIVATE_INVITE_URL", "PUBLIC_MAIN_ROLE_ID", "PRIVATE_GUILD_ID", "PRIVATE_ADMIN_CHANNEL_ID",
-    "BLACKLIST_CHANNEL_ID", "PRIVATE_RUST_ROLE_ID", "PRIVATE_COMBAT_ROLE_ID", "PRIVATE_FARM_ROLE_ID",
+    "BLACKLIST_CHANNEL_ID", "PRIVATE_RUST_ROLE_ID", "PRIVATE_NEW_MEMBER_ROLE_ID", "PRIVATE_COMBAT_ROLE_ID", "PRIVATE_FARM_ROLE_ID",
     "PRIVATE_BUILDER_ROLE_ID", "PRIVATE_INDUSTRIAL_ROLE_ID", "PRIVATE_ELECTRIC_ROLE_ID", "PRIVATE_PILOT_ROLE_ID"
     , "PRIVATE_MODERATOR_ROLE_ID", "PRIVATE_WARN_1_ROLE_ID", "PRIVATE_WARN_2_ROLE_ID", "PUNISHMENT_CATEGORY_ID", "WIPE_CHANNEL_ID", "RUST_SERVER_CONNECT", "MONITORING_SERVER_ID", "PLAYER_CHECK_CHANNEL_ID"
   ];
@@ -140,6 +140,6 @@ export default {
     }
   },
   scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
-    ctx.waitUntil(Promise.all([expireWarnings(env), sendDueWipeReminders(env), refreshPublishedServerStats(env), retryPendingOnboarding(env)]).then(() => undefined));
+    ctx.waitUntil(Promise.all([expireWarnings(env), expireTrialRoles(env), closeAcceptedTickets(env), sendDueWipeReminders(env), refreshPublishedServerStats(env), retryPendingOnboarding(env)]).then(() => undefined));
   }
 } satisfies ExportedHandler<Env>;

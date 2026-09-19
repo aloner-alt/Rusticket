@@ -1,7 +1,7 @@
 import { messages } from "../config/messages";
 import { CustomId, applicationEmbed, rejectionModal, staffButtons } from "../discord/components";
 import { InteractionResponseType, ephemeral, jsonResponse } from "../discord/interactions";
-import { discordRest, sendChannelMessage } from "../discord/rest";
+import { DiscordRestError, discordRest, sendChannelMessage } from "../discord/rest";
 import { isStaff } from "../discord/permissions";
 import { closeApplication, getApplicationByChannel, saveAcceptedApplication, saveApplication } from "../storage/applications";
 import type { ApplicationRecord, DiscordInteraction, Env } from "../types";
@@ -44,6 +44,47 @@ function privateOnboardingMessage(inviteUrl: string): string {
 
 function privateInviteButton(inviteUrl: string): unknown[] {
   return [{ type: 1, components: [{ type: 2, style: 5, label: "Войти на .int Private", emoji: { name: "🔐" }, url: inviteUrl }] }];
+}
+
+async function grantPublicMainRole(env: Env, userId: string): Promise<string> {
+  try {
+    await discordRest(env, `/guilds/${env.DISCORD_GUILD_ID}/members/${userId}/roles/${env.PUBLIC_MAIN_ROLE_ID}`, { method: "PUT" });
+    return "✅ Выдана";
+  } catch {
+    try {
+      const member = await discordRest<{ roles: string[] }>(env, `/guilds/${env.DISCORD_GUILD_ID}/members/${userId}`);
+      if (member.roles.includes(env.PUBLIC_MAIN_ROLE_ID)) return "✅ Уже присутствует";
+    } catch { /* Report the original role assignment failure below. */ }
+    return "⚠️ Не выдана: проверьте права бота и положение роли на Public-сервере";
+  }
+}
+
+export function acceptedTicketCloseDue(app: ApplicationRecord, now = Date.now()): boolean {
+  if (app.status !== "ACCEPTED" || !app.decidedAt) return false;
+  const decidedAt = Date.parse(app.decidedAt);
+  return Number.isFinite(decidedAt) && now - decidedAt >= 60 * 60 * 1000;
+}
+
+export async function closeAcceptedTickets(env: Env): Promise<void> {
+  let cursor: string | undefined;
+  do {
+    const page = await env.APPLICATIONS.list({ prefix: "active:", ...(cursor ? { cursor } : {}) });
+    for (const key of page.keys) {
+      const app = await env.APPLICATIONS.get<ApplicationRecord>(key.name, "json");
+      if (!app || !acceptedTicketCloseDue(app)) continue;
+      try {
+        await deleteInterviewVoice(env, app);
+        await discordRest(env, `/channels/${app.ticketChannelId}`, { method: "DELETE" });
+      } catch (error) {
+        if (!(error instanceof DiscordRestError) || error.status !== 404) {
+          console.error("Accepted ticket auto-close failed", app.ticketChannelId, error instanceof Error ? error.message : "unknown error");
+          continue;
+        }
+      }
+      await closeApplication(env, app);
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
 }
 
 async function deliverPrivateOnboarding(env: Env, app: ApplicationRecord): Promise<boolean> {
@@ -133,17 +174,14 @@ export async function acceptApplication(interaction: DiscordInteraction, env: En
   } catch {
     await recordOnboardingFailure(env, app);
   }
-  let publicRoleDelivered = true;
-  try {
-    await discordRest(env, `/guilds/${env.DISCORD_GUILD_ID}/members/${app.applicantId}/roles/${env.PUBLIC_MAIN_ROLE_ID}`, { method: "PUT" });
-  } catch { publicRoleDelivered = false; }
+  const publicRoleStatus = await grantPublicMainRole(env, app.applicantId);
   await logEvent(env, "✅ Заявка принята", [
     { name: "Кандидат", value: `<@${app.applicantId}>` },
     { name: "Staff", value: `<@${staff.id}>` },
     { name: "Канал", value: `<#${app.ticketChannelId}>` },
     { name: "Инструкция в тикете", value: onboardingDelivered ? "✅ Отправлена" : "⚠️ Будет отправлена повторно автоматически" },
     { name: "Ссылка в ЛС", value: dmDelivered ? "✅ Отправлена" : "⚠️ ЛС закрыты или временно недоступны" },
-    { name: "Main роль", value: publicRoleDelivered ? "✅ Выдана" : "⚠️ Discord отклонил выдачу; проверьте права и иерархию ролей" }
+    { name: "Main роль на Public", value: publicRoleStatus }
   ], 0x2ecc71);
   return ephemeral(onboardingDelivered ? "✅ Заявка принята, ссылка и команда /claim отправлены." : "✅ Заявка принята. Discord временно не принял сообщение; бот повторит отправку автоматически.");
 }

@@ -14,6 +14,7 @@ export interface Env {
   PRIVATE_ADMIN_CHANNEL_ID: string;
   BLACKLIST_CHANNEL_ID: string;
   PRIVATE_RUST_ROLE_ID: string;
+  PRIVATE_NEW_MEMBER_ROLE_ID: string;
   PRIVATE_COMBAT_ROLE_ID: string;
   PRIVATE_FARM_ROLE_ID: string;
   PRIVATE_BUILDER_ROLE_ID: string;
@@ -181,6 +182,7 @@ export interface MemberLink {
   realName: string;
   role: RoleKey;
   linkedAt: string;
+  trialRoleExpiresAt?: number;
 }
 
 export interface WarningEntry {
