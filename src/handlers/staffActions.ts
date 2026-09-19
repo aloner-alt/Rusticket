@@ -26,6 +26,26 @@ async function deleteInterviewVoice(env: Env, app: ApplicationRecord): Promise<v
   delete app.voiceChannelId;
 }
 
+function privateOnboardingMessage(inviteUrl: string): string {
+  return [
+    "✅ **Заявка принята — добро пожаловать в .int!**",
+    "",
+    "**1.** Зайдите на приватный сервер:",
+    inviteUrl,
+    "",
+    "**2.** Уже на **.int Private** напишите команду:",
+    "```",
+    "/claim",
+    "```",
+    "Бот автоматически выдаст вам Rust-роль, роль выбранного направления и установит ник.",
+    "Команду нужно выполнить с того же Discord-аккаунта, с которого подавалась заявка."
+  ].join("\n");
+}
+
+function privateInviteButton(inviteUrl: string): unknown[] {
+  return [{ type: 1, components: [{ type: 2, style: 5, label: "Войти на .int Private", emoji: { name: "🔐" }, url: inviteUrl }] }];
+}
+
 export async function inviteCandidateToVoice(interaction: DiscordInteraction, env: Env): Promise<Response> {
   if (!isStaff(interaction, env)) return ephemeral(messages.noPermission);
   const app = await requireApplication(interaction, env);
@@ -67,13 +87,17 @@ export async function acceptApplication(interaction: DiscordInteraction, env: En
   await updateCard(env, app);
   await discordRest(env, `/guilds/${env.DISCORD_GUILD_ID}/members/${app.applicantId}/roles/${env.PUBLIC_MAIN_ROLE_ID}`, { method: "PUT" });
   await sendChannelMessage(env, app.ticketChannelId, {
-    content: `✅ **Заявка принята**\n\n<@${app.applicantId}>, поздравляем! Ваша заявка на вступление в .int была одобрена.\n\n**Приватный сервер:** ${env.PRIVATE_INVITE_URL}\nПосле входа выполните там команду \`/claim\`, чтобы получить роли и ник.\n\nРешение принял: <@${staff.id}>`,
+    content: `<@${app.applicantId}>\n\n${privateOnboardingMessage(env.PRIVATE_INVITE_URL)}\n\nРешение принял: <@${staff.id}>`,
+    components: privateInviteButton(env.PRIVATE_INVITE_URL),
     allowed_mentions: { users: [app.applicantId, staff.id] }
   });
   const dmDelivered = await (async () => {
     try {
       const dm = await discordRest<{ id: string }>(env, "/users/@me/channels", { method: "POST", body: JSON.stringify({ recipient_id: app.applicantId }) });
-      await sendChannelMessage(env, dm.id, { content: `✅ Ваша заявка в **.int** принята!\n\nВступайте на приватный сервер: ${env.PRIVATE_INVITE_URL}\nПосле входа выполните \`/claim\`, чтобы получить роль, направление и ник.` });
+      await sendChannelMessage(env, dm.id, {
+        content: privateOnboardingMessage(env.PRIVATE_INVITE_URL),
+        components: privateInviteButton(env.PRIVATE_INVITE_URL)
+      });
       return true;
     } catch { return false; }
   })();
