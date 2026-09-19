@@ -54,6 +54,25 @@ async function rejectAndLog(
   ], 0xe67e22, components);
 }
 
+async function rejectAgeForStaffReview(
+  env: Env,
+  interaction: DiscordInteraction,
+  review: RejectedReview
+): Promise<void> {
+  await banApplicant(env, review.applicantId, review.steamId64, "Недостаточный возраст");
+  await saveRejectedReview(env, review);
+  await finish(env, interaction.token, `${messages.insufficientAge}\n\n⛔ Повторная подача заблокирована на **24 часа**, но Staff может принять вас как исключение.`);
+  await logEvent(env, "⚠️ Недостаточный возраст — доступно прямое принятие", [
+    { name: "Кандидат", value: `<@${review.applicantId}> (\`${review.applicantId}\`)` },
+    { name: "Возраст", value: String(review.age) },
+    { name: "Steam", value: `[Профиль](${review.steamUrl})` },
+    { name: "SteamID64", value: `\`${review.steamId64}\`` },
+    { name: "Направление", value: ROLE_REQUIREMENTS[review.role].label },
+    { name: "Часы", value: review.steamDataHidden ? "Скрыты" : `${review.rustHours} ч.` },
+    ...(review.applicantComment ? [{ name: "Комментарий кандидата", value: review.applicantComment }] : [])
+  ], 0xe67e22, ageRejectionActions(review.id));
+}
+
 export async function submitApplication(interaction: DiscordInteraction, env: Env, draftId: string): Promise<void> {
   const user = interactionUser(interaction);
   const draft = await getApplicationDraft(env, draftId);
@@ -87,19 +106,6 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
     return;
   }
   await deleteApplicationDraft(env, draftId);
-  if (age < MINIMUM_AGE) {
-    await rejectAndLog(
-      env,
-      interaction,
-      messages.insufficientAge,
-      "Недостаточный возраст",
-      [{ name: "Возраст", value: String(age) }],
-      true,
-      undefined,
-      ageRejectionActions(user.id)
-    );
-    return;
-  }
   if (dailyOnline < MINIMUM_DAILY_ONLINE) {
     await rejectAndLog(env, interaction, messages.insufficientOnline(dailyOnline), "Недостаточный онлайн", [{ name: "Онлайн", value: `${dailyOnline} ч./сутки` }], true);
     return;
@@ -145,6 +151,23 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
     if (steamBan) { await finish(env, interaction.token, messages.applicationBanned(remainingHours(steamBan.expiresAt))); return; }
     if (await isLiveApplication(env, existingSteam)) { await finish(env, interaction.token, messages.steamAlreadyUsed); return; }
     const requirement = ROLE_REQUIREMENTS[roleValue]; const inventory = await estimateRustInventory(env, steam.steamId64);
+    if (age < MINIMUM_AGE) {
+      await rejectAgeForStaffReview(env, interaction, {
+        id: crypto.randomUUID(), applicantId: user.id, applicantUsername: user.username,
+        age, dailyOnline, role: roleValue, steamUrl: steam.profileUrl, steamId64: steam.steamId64,
+        steamAccounts, rustHours: 0, requiredHours: requirement.minimumRustHours, realName,
+        steamDataHidden: true, inventoryStatus: inventory.status,
+        ...(inventory.itemCount !== undefined ? { inventoryItemCount: inventory.itemCount } : {}),
+        ...(inventory.valueRub !== undefined ? { inventoryValueRub: inventory.valueRub } : {}),
+        ...(inventory.pricedUnique !== undefined ? { inventoryPricedUnique: inventory.pricedUnique } : {}),
+        ...(inventory.totalUnique !== undefined ? { inventoryTotalUnique: inventory.totalUnique } : {}),
+        ...(inventory.limited !== undefined ? { inventoryLimited: inventory.limited } : {}),
+        ...(steam.steamName ? { steamName: steam.steamName } : {}),
+        ...(applicantComment ? { applicantComment } : {}),
+        rejectionReason: "Недостаточный возраст", createdAt: new Date().toISOString()
+      });
+      return;
+    }
     const application = await createApplicationTicket(env, {
       applicantId: user.id, applicantUsername: user.username, age, dailyOnline, role: roleValue,
       steamUrl: steam.profileUrl, steamId64: steam.steamId64,
@@ -192,6 +215,23 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
   }
 
   const requirement = ROLE_REQUIREMENTS[roleValue];
+  const inventory = await estimateRustInventory(env, steam.steamId64);
+  if (age < MINIMUM_AGE) {
+    await rejectAgeForStaffReview(env, interaction, {
+      id: crypto.randomUUID(), applicantId: user.id, applicantUsername: user.username,
+      age, dailyOnline, role: roleValue, steamUrl: steam.profileUrl, steamId64: steam.steamId64,
+      steamAccounts, rustHours: steam.rustHours, requiredHours: requirement.minimumRustHours,
+      realName, steamName: steam.steamName, inventoryStatus: inventory.status,
+      ...(inventory.itemCount !== undefined ? { inventoryItemCount: inventory.itemCount } : {}),
+      ...(inventory.valueRub !== undefined ? { inventoryValueRub: inventory.valueRub } : {}),
+      ...(inventory.pricedUnique !== undefined ? { inventoryPricedUnique: inventory.pricedUnique } : {}),
+      ...(inventory.totalUnique !== undefined ? { inventoryTotalUnique: inventory.totalUnique } : {}),
+      ...(inventory.limited !== undefined ? { inventoryLimited: inventory.limited } : {}),
+      ...(applicantComment ? { applicantComment } : {}),
+      rejectionReason: "Недостаточный возраст", createdAt: new Date().toISOString()
+    });
+    return;
+  }
   if (steam.rustHours < requirement.minimumRustHours) {
     await banApplicant(env, user.id, steam.steamId64, "Недостаточно часов Rust");
     const review: RejectedReview = {
@@ -201,6 +241,13 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
       requiredHours: requirement.minimumRustHours,
       realName,
       steamName: steam.steamName,
+      steamAccounts,
+      inventoryStatus: inventory.status,
+      ...(inventory.itemCount !== undefined ? { inventoryItemCount: inventory.itemCount } : {}),
+      ...(inventory.valueRub !== undefined ? { inventoryValueRub: inventory.valueRub } : {}),
+      ...(inventory.pricedUnique !== undefined ? { inventoryPricedUnique: inventory.pricedUnique } : {}),
+      ...(inventory.totalUnique !== undefined ? { inventoryTotalUnique: inventory.totalUnique } : {}),
+      ...(inventory.limited !== undefined ? { inventoryLimited: inventory.limited } : {}),
       ...(applicantComment ? { applicantComment } : {}),
       rejectionReason: "Недостаточно часов Rust", createdAt: new Date().toISOString()
     };
@@ -218,8 +265,6 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
     ], 0xe67e22, reviewActions(review.id));
     return;
   }
-
-  const inventory = await estimateRustInventory(env, steam.steamId64);
   const application = await createApplicationTicket(env, {
     applicantId: user.id, applicantUsername: user.username, age, dailyOnline,
     role: roleValue, steamUrl: steam.profileUrl, steamId64: steam.steamId64,

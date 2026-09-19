@@ -151,16 +151,9 @@ export async function inviteCandidateToVoice(interaction: DiscordInteraction, en
   return ephemeral(`✅ Кандидат приглашён в <#${channel.id}>.`);
 }
 
-export async function acceptApplication(interaction: DiscordInteraction, env: Env): Promise<Response> {
-  if (!isStaff(interaction, env)) return ephemeral(messages.noPermission);
-  const app = await requireApplication(interaction, env);
-  if (!app) return ephemeral("⚠️ Данные заявки не найдены.");
-  if (app.status !== "PENDING") return ephemeral(messages.alreadyHandled);
-  const staff = interactionUser(interaction);
-  if (!staff) return ephemeral(messages.genericError);
-
+export async function acceptApplicationRecord(env: Env, app: ApplicationRecord, staffId: string): Promise<boolean> {
   app.status = "ACCEPTED";
-  app.staffId = staff.id;
+  app.staffId = staffId;
   app.decidedAt = new Date().toISOString();
   await deleteInterviewVoice(env, app);
   await saveApplication(env, app);
@@ -177,12 +170,24 @@ export async function acceptApplication(interaction: DiscordInteraction, env: En
   const publicRoleStatus = await grantPublicMainRole(env, app.applicantId);
   await logEvent(env, "✅ Заявка принята", [
     { name: "Кандидат", value: `<@${app.applicantId}>` },
-    { name: "Staff", value: `<@${staff.id}>` },
+    { name: "Staff", value: `<@${staffId}>` },
     { name: "Канал", value: `<#${app.ticketChannelId}>` },
     { name: "Инструкция в тикете", value: onboardingDelivered ? "✅ Отправлена" : "⚠️ Будет отправлена повторно автоматически" },
     { name: "Ссылка в ЛС", value: dmDelivered ? "✅ Отправлена" : "⚠️ ЛС закрыты или временно недоступны" },
     { name: "Main роль на Public", value: publicRoleStatus }
   ], 0x2ecc71);
+  return onboardingDelivered;
+}
+
+export async function acceptApplication(interaction: DiscordInteraction, env: Env): Promise<Response> {
+  if (!isStaff(interaction, env)) return ephemeral(messages.noPermission);
+  const app = await requireApplication(interaction, env);
+  if (!app) return ephemeral("⚠️ Данные заявки не найдены.");
+  if (app.status !== "PENDING") return ephemeral(messages.alreadyHandled);
+  const staff = interactionUser(interaction);
+  if (!staff) return ephemeral(messages.genericError);
+
+  const onboardingDelivered = await acceptApplicationRecord(env, app, staff.id);
   return ephemeral(onboardingDelivered ? "✅ Заявка принята, ссылка и команда /claim отправлены." : "✅ Заявка принята. Discord временно не принял сообщение; бот повторит отправку автоматически.");
 }
 

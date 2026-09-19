@@ -89,6 +89,8 @@ export interface DiscordEmbed {
   color?: number;
   fields?: DiscordEmbedField[];
   footer?: { text: string };
+  image?: { url: string };
+  url?: string;
   timestamp?: string;
 }
 
@@ -169,6 +171,14 @@ export interface RejectedReview {
   requiredHours: number;
   realName?: string;
   steamName?: string;
+  steamAccounts?: ApplicationSteamAccount[];
+  steamDataHidden?: boolean;
+  inventoryStatus?: "OK" | "PRIVATE" | "ERROR";
+  inventoryItemCount?: number;
+  inventoryValueRub?: number;
+  inventoryPricedUnique?: number;
+  inventoryTotalUnique?: number;
+  inventoryLimited?: boolean;
   applicantComment?: string;
   rejectionReason: string;
   createdAt: string;
@@ -205,4 +215,29 @@ export interface RustServerConfig {
   connect: string;
   monitoringId: string;
   publicMessageId?: string;
+}
+
+export interface WipeRecord {
+  id: string;
+  project: string;
+  wipeAt: number;
+  gatherAt: number;
+  connect: string;
+  mapUrl?: string;
+  mapSquare?: string;
+  notifyAt: number;
+  sent: boolean;
+  messageId?: string;
+  createdAt: number;
+}
+
+export type WipeRsvp = "yes" | "late" | "no";
+
+export interface WipeAttendanceRecord {
+  wipeId: string;
+  userId: string;
+  rsvp?: WipeRsvp;
+  present?: boolean;
+  moderatorId?: string;
+  updatedAt: number;
 }

@@ -117,9 +117,9 @@ export function reviewActions(reviewId: string): unknown[] {
   ] }];
 }
 
-export function ageRejectionActions(userId: string): unknown[] {
+export function ageRejectionActions(reviewId: string): unknown[] {
   return [{ type: 1, components: [
-    { type: 2, style: 2, label: "Разбанить подачу", emoji: { name: "🔓" }, custom_id: `review:user-unban:${userId}` }
+    { type: 2, style: 3, label: "Принять как исключение", emoji: { name: "✅" }, custom_id: `review:age-accept:${reviewId}` }
   ] }];
 }
 
@@ -146,7 +146,8 @@ export function adminPanel(): { embeds: DiscordEmbed[]; components: unknown[] } 
     components: [{ type: 1, components: [
       { type: 2, style: 4, label: "Выдать варн", custom_id: "admin:warn", emoji: { name: "⚠️" } },
       { type: 2, style: 1, label: "Steam-привязка", custom_id: "admin:member-info", emoji: { name: "🔗" } },
-      { type: 2, style: 3, label: "Предупреждение о вайпе", custom_id: "admin:wipe", emoji: { name: "📢" } }
+      { type: 2, style: 3, label: "Предупреждение о вайпе", custom_id: "admin:wipe", emoji: { name: "📢" } },
+      { type: 2, style: 2, label: "Явка на вайп", custom_id: "admin:wipe-attendance", emoji: { name: "✅" } }
     ] }, { type: 1, components: [
       { type: 2, style: 4, label: "Добавить в ЧС навсегда", custom_id: "admin:blacklist", emoji: { name: "⛔" } },
       { type: 2, style: 1, label: "Привязать Rust-сервер", custom_id: "admin:server-bind", emoji: { name: "🎮" } },
@@ -188,8 +189,34 @@ export function wipeModal(): unknown {
     { type: 1, components: [{ type: 4, custom_id: "wipe_time", label: "Вайп (ГГГГ-ММ-ДД ЧЧ:ММ МСК)", style: 1, required: true, placeholder: "2026-09-15 18:00" }] },
     { type: 1, components: [{ type: 4, custom_id: "gather_before", label: "Сбор за сколько часов (1 или 2)", style: 1, required: true, placeholder: "1", min_length: 1, max_length: 1 }] },
     { type: 1, components: [{ type: 4, custom_id: "connect", label: "Connect к серверу", style: 1, required: true, max_length: 300 }] },
-    { type: 1, components: [{ type: 4, custom_id: "comment", label: "Дополнительная информация", style: 2, required: false, max_length: 500 }] }
+    { type: 1, components: [{ type: 4, custom_id: "map_url", label: "Ссылка на карту или скриншот", style: 1, required: false, placeholder: "https://...", max_length: 500 }] }
   ] };
+}
+
+export function wipeAnnouncementButtons(wipeId: string): unknown[] {
+  return [{ type: 1, components: [
+    { type: 2, style: 3, label: "Буду", custom_id: `wipe:rsvp:yes:${wipeId}`, emoji: { name: "✅" } },
+    { type: 2, style: 1, label: "Опоздаю", custom_id: `wipe:rsvp:late:${wipeId}`, emoji: { name: "🕒" } },
+    { type: 2, style: 4, label: "Не смогу", custom_id: `wipe:rsvp:no:${wipeId}`, emoji: { name: "❌" } },
+    { type: 2, style: 2, label: "Отметить квадрат", custom_id: `wipe:square:${wipeId}`, emoji: { name: "🗺️" } }
+  ] }];
+}
+
+export function wipeSquareModal(wipeId: string): unknown {
+  return { title: "Отметить квадрат на карте", custom_id: `wipe:square-modal:${wipeId}`, components: [
+    { type: 1, components: [{ type: 4, custom_id: "square", label: "Квадрат", style: 1, required: true, placeholder: "Например: H14", min_length: 2, max_length: 10 }] }
+  ] };
+}
+
+export function wipeAttendanceUserSelector(wipeId: string): unknown[] {
+  return [{ type: 1, components: [{ type: 5, custom_id: `wipe:attendance-user:${wipeId}`, placeholder: "Выберите участника", min_values: 1, max_values: 1 }] }];
+}
+
+export function wipeAttendanceDecisionButtons(wipeId: string, userId: string): unknown[] {
+  return [{ type: 1, components: [
+    { type: 2, style: 3, label: "Зашёл", custom_id: `wipe:present:${wipeId}:${userId}`, emoji: { name: "✅" } },
+    { type: 2, style: 4, label: "Не зашёл — выдать варн", custom_id: `wipe:absent:${wipeId}:${userId}`, emoji: { name: "⚠️" } }
+  ] }];
 }
 
 export function warningChannelButtons(userId: string, level: 1 | 2): unknown[] {

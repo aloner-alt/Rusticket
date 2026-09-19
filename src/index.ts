@@ -7,11 +7,16 @@ import { openApplication, openSteamAccounts, saveApplicationDetails, selectRole 
 import { setupRecruitment } from "./handlers/setupRecruitment";
 import { submitApplication } from "./handlers/submitApplication";
 import { acceptApplication, cancelClose, closeAcceptedTickets, closeTicket, confirmClose, inviteCandidateToVoice, openRejectModal, rejectApplication, retryPendingOnboarding } from "./handlers/staffActions";
-import { banFromReview, createExceptionTicket, openExceptionModal, unbanFromReview, unbanUserFromLog } from "./handlers/reviewModeration";
+import { acceptAgeException, banFromReview, createExceptionTicket, openExceptionModal, unbanFromReview, unbanUserFromLog } from "./handlers/reviewModeration";
 import { claimRoles, expireTrialRoles } from "./handlers/privateOnboarding";
 import { checkClanPlayer, checkPlayer } from "./handlers/playerCheck";
 import { bindServer, openServerBinding, publishServerStats, refreshPublishedServerStats } from "./handlers/serverStats";
-import { expireWarnings, issueWarning, openUserSelection, openWipeModal, ownWarningStatus, permanentBlacklist, removeWarningFromChannel, selectedMemberInfo, selectBlacklistUser, selectWarningUser, sendDueWipeReminders, setupAdminPanel, submitWipe } from "./handlers/warnings";
+import {
+  expireWarnings, issueWarning, markWipeAttendance, openUserSelection, openWipeAttendance, openWipeModal,
+  openWipeSquareModal, ownWarningStatus, permanentBlacklist, removeWarningFromChannel, respondToWipe,
+  selectedMemberInfo, selectBlacklistUser, selectWarningUser, selectWipeAttendanceUser, sendDueWipeReminders,
+  setupAdminPanel, submitWipe, submitWipeSquare
+} from "./handlers/warnings";
 import type { DiscordInteraction, Env } from "./types";
 
 async function editPlayerCheckError(interaction: DiscordInteraction, env: Env): Promise<void> {
@@ -66,6 +71,12 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
     if (customId === CustomId.CloseConfirm) return closeTicket(interaction, env, ctx);
     if (customId === CustomId.CloseCancel) return cancelClose();
     if (customId?.startsWith("review:exception:")) return openExceptionModal(interaction, env);
+    if (customId?.startsWith("review:age-accept:")) {
+      ctx.waitUntil(acceptAgeException(interaction, env).catch(async () => {
+        await editOriginalResponse(env, interaction.token, { content: messages.genericError, components: [] }).catch(() => undefined);
+      }));
+      return deferredEphemeral();
+    }
     if (customId?.startsWith("review:ban:")) return banFromReview(interaction, env);
     if (customId?.startsWith("review:unban:")) return unbanFromReview(interaction, env);
     if (customId?.startsWith("review:user-unban:")) return unbanUserFromLog(interaction, env);
@@ -76,6 +87,7 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
     if (customId === "admin:member-info-user") return selectedMemberInfo(interaction, env);
     if (customId === "admin:blacklist-user") return selectBlacklistUser(interaction, env);
     if (customId === "admin:wipe") return openWipeModal(interaction, env);
+    if (customId === "admin:wipe-attendance") return openWipeAttendance(interaction, env);
     if (customId === "admin:server-bind") return openServerBinding(interaction, env);
     if (customId === "admin:clan-stats") return openUserSelection(interaction, env, "clan-stats");
     if (customId === "admin:clan-stats-user") {
@@ -84,6 +96,10 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
     }
     if (customId === "admin:server-publish") return publishServerStats(interaction, env);
     if (customId?.startsWith("warning:remove:")) return removeWarningFromChannel(interaction, env);
+    if (customId?.startsWith("wipe:rsvp:")) return respondToWipe(interaction, env);
+    if (customId?.startsWith("wipe:square:")) return openWipeSquareModal(interaction, env);
+    if (customId?.startsWith("wipe:attendance-user:")) return selectWipeAttendanceUser(interaction, env);
+    if (customId?.startsWith("wipe:present:") || customId?.startsWith("wipe:absent:")) return markWipeAttendance(interaction, env);
   }
 
   if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith(CustomId.FormPrefix)) {
@@ -113,6 +129,7 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
   }
   if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith("admin:warn-modal:")) return issueWarning(interaction, env);
   if (interaction.type === InteractionType.ModalSubmit && customId === "admin:wipe-modal") return submitWipe(interaction, env);
+  if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith("wipe:square-modal:")) return submitWipeSquare(interaction, env);
   if (interaction.type === InteractionType.ModalSubmit && customId === "admin:server-bind-modal") return bindServer(interaction, env);
   if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith("admin:blacklist-modal:")) return permanentBlacklist(interaction, env);
 
