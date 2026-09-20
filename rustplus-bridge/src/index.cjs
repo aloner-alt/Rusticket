@@ -11,8 +11,8 @@ if (!/^[a-z0-9][a-z0-9_-]{1,39}$/.test(process.env.RUSTPLUS_SERVER_ID)) throw ne
 const pollSeconds = Math.max(30, Number(process.env.POLL_SECONDS || 60));
 const pollMs = pollSeconds * 1000;
 const timeZone = process.env.TIME_ZONE || "Europe/Moscow";
-const wipeStartedAt = process.env.RUSTPLUS_WIPE_STARTED_AT ? Date.parse(process.env.RUSTPLUS_WIPE_STARTED_AT) : undefined;
-if (process.env.RUSTPLUS_WIPE_STARTED_AT && !Number.isFinite(wipeStartedAt)) throw new Error("RUSTPLUS_WIPE_STARTED_AT must be an ISO date");
+const configuredWipeStartedAt = process.env.RUSTPLUS_WIPE_STARTED_AT ? Date.parse(process.env.RUSTPLUS_WIPE_STARTED_AT) : undefined;
+if (process.env.RUSTPLUS_WIPE_STARTED_AT && !Number.isFinite(configuredWipeStartedAt)) throw new Error("RUSTPLUS_WIPE_STARTED_AT must be an ISO date");
 const stateDir = path.join(__dirname, "..", ".data");
 const statePath = path.join(stateDir, "player-stats.json");
 let state = { version: 1, players: {} };
@@ -128,7 +128,8 @@ async function getServerStatus(rustplus) {
   }
   return {
     players: number(info.players), maxPlayers: number(info.maxPlayers), queuedPlayers: number(info.queuedPlayers),
-    map: String(info.map || "Неизвестна").slice(0, 100), gameTime: clock(time.time), dayPhase: phase(time), events: eventLines(markers)
+    map: String(info.map || "Неизвестна").slice(0, 100), gameTime: clock(time.time), dayPhase: phase(time), events: eventLines(markers),
+    wipeStartedAt: currentWipeTime > 0 ? currentWipeTime * 1000 : configuredWipeStartedAt
   };
 }
 
@@ -148,9 +149,10 @@ async function poll(rustplus) {
   try {
     const now = Date.now();
     const [members, server] = await Promise.all([getTeamInfo(rustplus), getServerStatus(rustplus)]);
+    const { wipeStartedAt, ...publicServer } = server;
     state = updateState(state, members, now, { pollMs, timeZone, wipeStartedAt });
     await saveState();
-    await sendSnapshot(toSnapshot(state, process.env.RUSTPLUS_SERVER_ID, process.env.RUSTPLUS_SERVER_NAME || "Rust server", true, now, server));
+    await sendSnapshot(toSnapshot(state, process.env.RUSTPLUS_SERVER_ID, process.env.RUSTPLUS_SERVER_NAME || "Rust server", true, now, publicServer));
     console.log(`[${new Date().toISOString()}] ${members.filter(member => member.isOnline).length}/${members.length} team members online`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Poll failed:`, error.message);

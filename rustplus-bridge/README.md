@@ -55,4 +55,4 @@ pnpm install
 pnpm start
 ```
 
-The process writes accumulated player time to `.data/player-stats.json`. Back up this file when moving to another host. Set `RUSTPLUS_WIPE_STARTED_AT` to the wipe start in ISO format, for example `2026-09-24T18:00:00+03:00`; changing it starts a new wipe counter without deleting total tracked time.
+The process writes accumulated player time to `.data/player-stats.json`. Back up this file when moving to another host. The wipe time, map and monuments are detected automatically from Rust+. When `wipeTime` changes, the bridge reloads the map and resets only the wipe counter. `RUSTPLUS_WIPE_STARTED_AT` is an optional fallback for servers that return no wipe time.
