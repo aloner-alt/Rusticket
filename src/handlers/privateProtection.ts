@@ -35,6 +35,10 @@ export function protectedOverwrites(channel: Channel, guildId: string, roles: Ro
 
 export async function enablePrivateProtection(i: DiscordInteraction, env: Env): Promise<Response> {
   if (i.guild_id !== env.PRIVATE_GUILD_ID || !isAdministrator(i)) return ephemeral("❌ Включить защиту может только администратор привата.");
+  return continuePrivateProtection(env);
+}
+
+export async function continuePrivateProtection(env: Env, batchSize = 10): Promise<Response> {
   const key = `private-protection:${env.PRIVATE_GUILD_ID}`;
   let backup = await env.APPLICATIONS.get<Backup>(key, "json");
   if (!backup) {
@@ -60,7 +64,7 @@ export async function enablePrivateProtection(i: DiscordInteraction, env: Env): 
   }
   let count = 0;
   // Small resumable batches stay within the interaction background-work window.
-  for (const channel of backup.channels.filter(channel => !backup.completed.includes(channel.id)).slice(0, 10)) {
+  for (const channel of backup.channels.filter(channel => !backup.completed.includes(channel.id)).slice(0, batchSize)) {
     const permissions = protectedOverwrites(channel, env.PRIVATE_GUILD_ID, backup.roles, env.PRIVATE_RUST_ROLE_ID, env.PRIVATE_MODERATOR_ROLE_ID, env.DISCORD_APPLICATION_ID);
     await discordRest(env, `/channels/${channel.id}`, { method: "PATCH", body: JSON.stringify({ permission_overwrites: permissions }) });
     backup.completed.push(channel.id);
@@ -69,6 +73,24 @@ export async function enablePrivateProtection(i: DiscordInteraction, env: Env): 
   }
   const remaining = backup.channels.length - backup.completed.length;
   return ephemeral(remaining
-    ? `Защищено ${backup.completed.length}/${backup.channels.length} каналов (+${count}). Нажмите «Защита от гостей» ещё раз для следующих каналов. Канал входа: <#${backup.entryId}>.`
+    ? `Настроено ${backup.completed.length}/${backup.channels.length} каналов (+${count}). Остальные настроятся автоматически. Канал входа: <#${backup.entryId}>.`
     : `✅ Защита установлена на ${backup.completed.length} каналах. Люди без ролей не могут писать, создавать ветки, приглашения, реакции или подключаться к войсу. Получение ролей: <#${backup.entryId}>. Новые каналы создавайте в защищённых категориях. Индивидуальные разрешения и разрешающие другие роли могут давать исключения.`);
+}
+
+export async function maintainPrivateEntry(env: Env): Promise<void> {
+  await continuePrivateProtection(env, 50);
+  const marker = `private-entry-panel-cleanup:${env.PRIVATE_GUILD_ID}`;
+  if (await env.APPLICATIONS.get(marker)) return;
+  type Row = { type: number; components: { custom_id?: string; [key: string]: unknown }[] };
+  type Message = { id: string; author: { id: string }; components?: Row[] };
+  const cursor = await env.APPLICATIONS.get(`${marker}:cursor`);
+  const messages = await discordRest<Message[]>(env, `/channels/${env.PRIVATE_ADMIN_CHANNEL_ID}/messages?limit=100${cursor ? `&before=${cursor}` : ""}`);
+  for (const message of messages) {
+    if (message.author.id !== env.DISCORD_APPLICATION_ID || !message.components?.some(row => row.components.some(component => component.custom_id === "admin:private-protection"))) continue;
+    const components = message.components.map(row => ({ ...row, components: row.components.filter(component => component.custom_id !== "admin:private-protection") })).filter(row => row.components.length);
+    await discordRest(env, `/channels/${env.PRIVATE_ADMIN_CHANNEL_ID}/messages/${message.id}`, { method: "PATCH", body: JSON.stringify({ components }) });
+  }
+  const last = messages.at(-1);
+  if (messages.length === 100 && last) await env.APPLICATIONS.put(`${marker}:cursor`, last.id);
+  else await env.APPLICATIONS.put(marker, "done");
 }

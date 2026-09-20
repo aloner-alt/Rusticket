@@ -1,5 +1,5 @@
 import { messages } from "./config/messages";
-import { enablePrivateProtection } from "./handlers/privateProtection";
+import { enablePrivateProtection, maintainPrivateEntry } from "./handlers/privateProtection";
 import { CustomId } from "./discord/components";
 import { EPHEMERAL, InteractionResponseType, InteractionType, deferredEphemeral, deferredPublic, ephemeral, jsonResponse } from "./discord/interactions";
 import { editOriginalResponse } from "./discord/rest";
@@ -198,6 +198,6 @@ export default {
     }
   },
   scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
-    ctx.waitUntil(Promise.all([expireWarnings(env).then(() => warnUnansweredWipes(env)), expireTrialRoles(env), closeAcceptedTickets(env), sendDueWipeReminders(env), refreshPublishedServerStats(env), retryPendingOnboarding(env)]).then(() => undefined));
+    ctx.waitUntil(Promise.all([maintainPrivateEntry(env), expireWarnings(env).then(() => warnUnansweredWipes(env)), expireTrialRoles(env), closeAcceptedTickets(env), sendDueWipeReminders(env), refreshPublishedServerStats(env), retryPendingOnboarding(env)]).then(() => undefined));
   }
 } satisfies ExportedHandler<Env>;
