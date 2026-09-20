@@ -6,12 +6,13 @@ import { verifySteamProfile } from "../steam/steamClient";
 import { estimateRustInventory } from "../steam/inventory";
 import {
   banApplicant, closeApplication, getActiveApplication, getActiveApplicationBySteam, getSteamBan,
-  getUserBan, isCoolingDown, saveRejectedReview, getApplicationDraft, deleteApplicationDraft
+  getUserBan, isCoolingDown, saveRejectedReview, getApplicationDraft, deleteApplicationDraft, getRecruitmentState
 } from "../storage/applications";
 import type { ApplicationSteamAccount, DiscordInteraction, Env, RejectedReview } from "../types";
 import { logEvent } from "../utils/logger";
 import { interactionUser, modalValue } from "./helpers";
 import { createApplicationTicket } from "./ticketService";
+import { RECRUITMENT_CLOSED_MESSAGE } from "./recruitmentControl";
 
 async function finish(env: Env, token: string, content: string): Promise<void> {
   await editOriginalResponse(env, token, { content, components: [] });
@@ -78,6 +79,11 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
   const draft = await getApplicationDraft(env, draftId);
   if (!user || !draft || draft.applicantId !== user.id || !isRoleKey(draft.role)) {
     await finish(env, interaction.token, "⚠️ Анкета истекла. Нажмите «Подать заявку» и заполните её заново.");
+    return;
+  }
+  if (!(await getRecruitmentState(env)).open) {
+    await deleteApplicationDraft(env, draftId);
+    await finish(env, interaction.token, RECRUITMENT_CLOSED_MESSAGE);
     return;
   }
   const { age, dailyOnline, realName, applicantComment } = draft;

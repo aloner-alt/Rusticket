@@ -1,12 +1,13 @@
 import { CustomId, applicationModal, roleSelector, steamAccountsModal, steamStepButton } from "../discord/components";
 import { EPHEMERAL, InteractionResponseType, ephemeral, jsonResponse } from "../discord/interactions";
 import { DiscordRestError, discordRest } from "../discord/rest";
-import { closeApplication, getActiveApplication, getApplicationDraft, saveApplicationDraft } from "../storage/applications";
+import { closeApplication, getActiveApplication, getApplicationDraft, getRecruitmentState, saveApplicationDraft } from "../storage/applications";
 import type { ApplicationDraft, DiscordInteraction, Env } from "../types";
 import { messages } from "../config/messages";
 import { isRoleKey } from "../config/requirements";
 import { parseStrictInteger } from "../utils/validation";
 import { interactionUser, modalValue } from "./helpers";
+import { RECRUITMENT_CLOSED_MESSAGE } from "./recruitmentControl";
 
 export async function openApplication(interaction: DiscordInteraction, env: Env): Promise<Response> {
   const user = interactionUser(interaction);
@@ -21,19 +22,22 @@ export async function openApplication(interaction: DiscordInteraction, env: Env)
       await closeApplication(env, active);
     }
   }
+  if (!(await getRecruitmentState(env)).open) return ephemeral(RECRUITMENT_CLOSED_MESSAGE);
   return jsonResponse({
     type: InteractionResponseType.ChannelMessageWithSource,
     data: { content: "Выберите направление, на которое хотите подать заявку:", components: roleSelector(), flags: EPHEMERAL }
   });
 }
 
-export function selectRole(interaction: DiscordInteraction): Response {
+export async function selectRole(interaction: DiscordInteraction, env: Env): Promise<Response> {
+  if (!(await getRecruitmentState(env)).open) return ephemeral(RECRUITMENT_CLOSED_MESSAGE);
   const role = interaction.data?.values?.[0];
   if (!role || !isRoleKey(role)) return ephemeral(messages.invalidData);
   return jsonResponse({ type: InteractionResponseType.Modal, data: applicationModal(role) });
 }
 
 export async function saveApplicationDetails(interaction: DiscordInteraction, env: Env, roleValue: string): Promise<Response> {
+  if (!(await getRecruitmentState(env)).open) return ephemeral(RECRUITMENT_CLOSED_MESSAGE);
   const user = interactionUser(interaction);
   if (!user || !isRoleKey(roleValue)) return ephemeral(messages.invalidData);
   const age = parseStrictInteger(modalValue(interaction, "age") ?? "");
@@ -65,6 +69,7 @@ export async function saveApplicationDetails(interaction: DiscordInteraction, en
 }
 
 export async function openSteamAccounts(interaction: DiscordInteraction, env: Env): Promise<Response> {
+  if (!(await getRecruitmentState(env)).open) return ephemeral(RECRUITMENT_CLOSED_MESSAGE);
   const user = interactionUser(interaction);
   const draftId = interaction.data?.custom_id?.slice(CustomId.SteamStepPrefix.length);
   if (!user || !draftId) return ephemeral(messages.invalidData);

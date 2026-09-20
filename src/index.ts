@@ -6,6 +6,7 @@ import { editOriginalResponse } from "./discord/rest";
 import { verifyDiscordRequest } from "./discord/verification";
 import { openApplication, openSteamAccounts, saveApplicationDetails, selectRole } from "./handlers/openApplication";
 import { setupRecruitment } from "./handlers/setupRecruitment";
+import { toggleRecruitment } from "./handlers/recruitmentControl";
 import { submitApplication } from "./handlers/submitApplication";
 import { acceptApplication, cancelClose, closeAcceptedTickets, closeTicket, confirmClose, inviteCandidateToVoice, openRejectModal, rejectApplication, retryPendingOnboarding } from "./handlers/staffActions";
 import { acceptAgeException, banFromReview, createExceptionTicket, openExceptionModal, unbanFromReview, unbanUserFromLog } from "./handlers/reviewModeration";
@@ -73,7 +74,7 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
       return deferredEphemeral();
     }
     if (customId === CustomId.Open) return openApplication(interaction, env);
-    if (customId === CustomId.Role) return selectRole(interaction);
+    if (customId === CustomId.Role) return selectRole(interaction, env);
     if (customId?.startsWith(CustomId.SteamStepPrefix)) return openSteamAccounts(interaction, env);
     if (customId === CustomId.Accept) return acceptApplication(interaction, env);
     if (customId === CustomId.Reject) return openRejectModal(interaction, env);
@@ -97,6 +98,7 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
     if (customId === "admin:warn-user") return selectWarningUser(interaction, env);
     if (customId === "admin:member-info-user") return selectedMemberInfo(interaction, env);
     if (customId === "admin:blacklist-user") return selectBlacklistUser(interaction, env);
+    if (customId === "admin:recruitment-toggle") return toggleRecruitment(interaction, env);
     if (customId === "admin:wipe") return openWipeModal(interaction, env);
     if (customId === "admin:wipe-attendance" || customId?.startsWith("wipe:roster:")) {
       ctx.waitUntil(openWipeAttendance(interaction, env).then(async response => {

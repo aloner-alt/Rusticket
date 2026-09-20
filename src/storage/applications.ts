@@ -13,6 +13,22 @@ const warningKey = (userId: string) => `warning:${userId}`;
 const acceptedKey = (userId: string) => `accepted:${userId}`;
 const draftKey = (id: string) => `draft:${id}`;
 const SERVER_CONFIG_KEY = "rust-server:primary";
+const RECRUITMENT_STATE_KEY = "recruitment:state";
+
+export interface RecruitmentState {
+  open: boolean;
+  updatedAt?: number;
+  updatedBy?: string;
+  panelMessageId?: string;
+}
+
+export async function getRecruitmentState(env: Env): Promise<RecruitmentState> {
+  return await env.APPLICATIONS.get<RecruitmentState>(RECRUITMENT_STATE_KEY, "json") ?? { open: true };
+}
+
+export function saveRecruitmentState(env: Env, state: RecruitmentState): Promise<void> {
+  return env.APPLICATIONS.put(RECRUITMENT_STATE_KEY, JSON.stringify(state));
+}
 
 export async function isCoolingDown(env: Env, userId: string): Promise<boolean> {
   const key = cooldownKey(userId);

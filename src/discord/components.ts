@@ -16,14 +16,16 @@ export const CustomId = {
   , InviteVoice: "application:invite-voice"
 } as const;
 
-export function recruitmentPanel(): { embeds: DiscordEmbed[]; components: unknown[] } {
+export function recruitmentPanel(open = true): { embeds: DiscordEmbed[]; components: unknown[] } {
   return {
     embeds: [{
-      title: "🛡️ Заявка в клан .int",
-      description: "Хотите вступить в **.int**?\n\nНажмите кнопку ниже и заполните анкету. Перед созданием тикета бот автоматически проверит основные требования к кандидату.",
-      color: 0x2ecc71
+      title: open ? "🛡️ Заявка в клан .int" : "🔒 Набор в клан .int закрыт",
+      description: open
+        ? "Хотите вступить в **.int**?\n\nНажмите кнопку ниже и заполните анкету. Перед созданием тикета бот автоматически проверит основные требования к кандидату."
+        : "Сейчас новые заявки временно не принимаются. Следите за обновлениями — Staff откроет набор этой же панелью.",
+      color: open ? 0x2ecc71 : 0xe74c3c
     }],
-    components: [{ type: 1, components: [{ type: 2, style: 3, label: "Подать заявку", emoji: { name: "📝" }, custom_id: CustomId.Open }] }]
+    components: [{ type: 1, components: [{ type: 2, style: open ? 3 : 2, label: open ? "Подать заявку" : "Набор закрыт", emoji: { name: open ? "📝" : "🔒" }, custom_id: CustomId.Open, disabled: !open }] }]
   };
 }
 
@@ -148,6 +150,7 @@ export function adminPanel(): { embeds: DiscordEmbed[]; components: unknown[] } 
       { type: 2, style: 1, label: "Steam-привязка", custom_id: "admin:member-info", emoji: { name: "🔗" } },
       { type: 2, style: 3, label: "Предупреждение о вайпе", custom_id: "admin:wipe", emoji: { name: "📢" } },
       { type: 2, style: 2, label: "Явка на вайп", custom_id: "admin:wipe-attendance", emoji: { name: "✅" } }
+      , { type: 2, style: 4, label: "Открыть / закрыть набор", custom_id: "admin:recruitment-toggle", emoji: { name: "🔒" } }
     ] }, { type: 1, components: [
       { type: 2, style: 4, label: "Добавить в ЧС навсегда", custom_id: "admin:blacklist", emoji: { name: "⛔" } },
       { type: 2, style: 1, label: "Привязать Rust-сервер", custom_id: "admin:server-bind", emoji: { name: "🎮" } },
