@@ -25,6 +25,9 @@ export interface PlayerInspection { steamId64: string; summary: Summary; bans?: 
 
 export async function inspectPlayer(env: Env, input: string): Promise<PlayerInspection | null> {
   const steamId64 = await resolveSteamId(input, env.STEAM_API_KEY); if (!steamId64) return null;
+  const cacheKey = `player-inspection:${steamId64}`;
+  const cached = await env.APPLICATIONS.get<PlayerInspection>(cacheKey, "json");
+  if (cached) return cached;
   const summaryUrl = new URL("https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/"); summaryUrl.searchParams.set("key", env.STEAM_API_KEY); summaryUrl.searchParams.set("steamids", steamId64);
   const bansUrl = new URL("https://api.steampowered.com/ISteamUser/GetPlayerBans/v1/"); bansUrl.searchParams.set("key", env.STEAM_API_KEY); bansUrl.searchParams.set("steamids", steamId64);
   const gamesUrl = new URL("https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/"); gamesUrl.searchParams.set("key", env.STEAM_API_KEY); gamesUrl.searchParams.set("steamid", steamId64); gamesUrl.searchParams.set("include_played_free_games", "true"); gamesUrl.searchParams.set("appids_filter[0]", "252490");
@@ -35,7 +38,9 @@ export async function inspectPlayer(env: Env, input: string): Promise<PlayerInsp
   ]);
   const summary = summaries?.response?.players?.[0]; if (!summary) return null;
   const rust = games?.response?.games?.find((game) => game.appid === 252490);
-  return { steamId64, summary, inventory, ...(bans?.players?.[0] ? { bans: bans.players[0] } : {}),
+  const result: PlayerInspection = { steamId64, summary, inventory, ...(bans?.players?.[0] ? { bans: bans.players[0] } : {}),
     ...(rust ? { rustHours: Math.floor(rust.playtime_forever / 60), rustRecentHours: Math.floor((rust.playtime_2weeks ?? 0) / 60) } : {}),
     ...(stats?.playerstats?.stats ? { stats: stats.playerstats.stats } : {}) };
+  await env.APPLICATIONS.put(cacheKey, JSON.stringify(result), { expirationTtl: 300 });
+  return result;
 }

@@ -28,10 +28,11 @@ export async function checkPlayer(interaction: DiscordInteraction, env: Env): Pr
 export function playerEmbed(player: PlayerInspection): DiscordEmbed {
   const bans = player.bans; const visible = player.summary.communityvisibilitystate === 3;
   const created = player.summary.timecreated ? `<t:${player.summary.timecreated}:D> (<t:${player.summary.timecreated}:R>)` : "Скрыто";
-  const inventory = player.inventory.status === "OK" ? `≈ **${(player.inventory.valueRub ?? 0).toLocaleString("ru-RU")} ₽** (${player.inventory.itemCount ?? 0} предметов)` : player.inventory.status === "PRIVATE" ? "🔒 Скрыт" : "⚠️ Недоступен";
+  const inventory = player.inventory.status === "OK" ? `≈ **${(player.inventory.valueRub ?? 0).toLocaleString("ru-RU")} ₽** (${player.inventory.itemCount ?? 0} предметов)${player.inventory.limited ? `\nОценено ${player.inventory.pricedUnique ?? 0} из ${player.inventory.totalUnique ?? 0} уникальных предметов` : ""}` : player.inventory.status === "PRIVATE" ? "🔒 Скрыт" : "⚠️ Недоступен";
   const fields: DiscordEmbedField[] = [
     { name: "Steam", value: `[${player.summary.personaname}](${player.summary.profileurl})` }, { name: "SteamID64", value: `\`${player.steamId64}\``, inline: true },
     { name: "Аккаунт создан", value: created, inline: true }, { name: "Профиль", value: visible ? "Публичный" : "Скрыт/ограничен", inline: true },
+    { name: "Последняя активность Steam", value: player.summary.lastlogoff ? `<t:${player.summary.lastlogoff}:R>` : "Скрыто", inline: true },
     { name: "Rust", value: player.rustHours === undefined ? "Скрыто" : `${player.rustHours.toLocaleString("ru-RU")} ч.`, inline: true },
     { name: "За 2 недели", value: player.rustRecentHours === undefined ? "Скрыто" : `${player.rustRecentHours.toLocaleString("ru-RU")} ч.`, inline: true },
     { name: "VAC / игровые баны", value: bans ? `${bans.NumberOfVACBans} / ${bans.NumberOfGameBans}` : "Недоступно", inline: true },
@@ -41,7 +42,7 @@ export function playerEmbed(player: PlayerInspection): DiscordEmbed {
   ];
   const kills = findStat(player.stats, ["kill_player", "kills"]); const deaths = findStat(player.stats, ["deaths", "death"]);
   if (kills !== undefined || deaths !== undefined) fields.push({ name: "Rust-статистика", value: `Убийства: ${kills ?? "—"}\nСмерти: ${deaths ?? "—"}${kills !== undefined && deaths ? `\nK/D: ${(kills / deaths).toFixed(2)}` : ""}` });
-  return { title: "📊 Статистика игрока клана", color: 0x5865f2, fields, footer: { text: "Данные Steam и Rust" }, timestamp: new Date().toISOString() };
+  return { title: "📊 Статистика игрока клана", color: 0x5865f2, fields, ...(player.summary.avatarfull ? { thumbnail: { url: player.summary.avatarfull } } : {}), footer: { text: "Публичные данные Steam • стоимость инвентаря приблизительная • кэш 5 минут" }, timestamp: new Date().toISOString() };
 }
 
 export async function checkClanPlayer(interaction: DiscordInteraction, env: Env): Promise<void> {
