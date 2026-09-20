@@ -228,6 +228,22 @@ export async function ownWarningStatus(i: DiscordInteraction, env: Env): Promise
   return record?.warnings.length ? ephemeral(record.warnings.map((w) => `⚠️ **Warn ${w.level}** — ${w.reason}\nИстекает <t:${Math.floor(w.expiresAt / 1000)}:R>`).join("\n\n")) : ephemeral("✅ У вас нет активных предупреждений.");
 }
 
+export async function kickFromWarning(i: DiscordInteraction, env: Env): Promise<Response> {
+  if (i.guild_id !== env.PRIVATE_GUILD_ID || !isPrivateModerator(i, env)) return ephemeral("❌ Только модератор привата может кикнуть участника.");
+  const match = /^warning:(kick|kick-confirm):(\d{17,20})$/.exec(i.data?.custom_id ?? "");
+  const userId = match?.[2];
+  if (!userId) return ephemeral("Некорректная кнопка.");
+  const record = await getWarningRecord(env, userId);
+  const warning = record?.warnings.find(w => w.level === 2 && w.expiresAt > Date.now() && (w.channelId || record.channelId) === i.channel_id);
+  if (!warning) return ephemeral("Активный второй варн в этом канале не найден.");
+  if (match[1] === "kick") return jsonResponse({ type: InteractionResponseType.ChannelMessageWithSource, data: {
+    content: `Исключить <@${userId}> из приватного сервера за второй варн? Это кик, без постоянного бана.`, flags: 64, allowed_mentions: { parse: [] },
+    components: [{ type: 1, components: [{ type: 2, style: 4, label: "Подтвердить кик", custom_id: `warning:kick-confirm:${userId}` }] }]
+  } });
+  await discordRest(env, `/guilds/${env.PRIVATE_GUILD_ID}/members/${userId}`, { method: "DELETE", headers: { "X-Audit-Log-Reason": encodeURIComponent(`Warn 2; moderator ${interactionUser(i)?.id ?? "unknown"}`) } });
+  return ephemeral("✅ Участник исключён из привата.");
+}
+
 export function openWipeModal(i: DiscordInteraction, env: Env): Response {
   return isPrivateModerator(i, env) ? jsonResponse({ type: InteractionResponseType.Modal, data: wipeModal() }) : ephemeral("❌ Недостаточно прав.");
 }
@@ -328,7 +344,7 @@ export async function submitWipeSquare(i: DiscordInteraction, env: Env): Promise
 
 export async function openWipeAttendance(i: DiscordInteraction, env: Env): Promise<Response> {
   if (!isPrivateModerator(i, env)) return ephemeral("❌ Недостаточно прав.");
-  const requested = /^wipe:roster:([0-9a-f-]{36}):(\d+)$/i.exec(i.data?.custom_id ?? "");
+  const requested = /^wipe:roster:([0-9a-f-]{36}):(\d+)(?::back|:refresh|:next)?$/i.exec(i.data?.custom_id ?? "");
   const wipe = requested
     ? await env.APPLICATIONS.get<WipeRecord>(wipeKey(requested[1] ?? ""), "json")
     : await nextPendingWipe(env) ?? await latestReviewableWipe(env);
@@ -355,9 +371,9 @@ export async function openWipeAttendance(i: DiscordInteraction, env: Env): Promi
   }
   const page = Math.min(Number(requested?.[2] ?? 0), pages.length - 1);
   const navigation = [{ type: 1, components: [
-    { type: 2, style: 2, label: "Назад", custom_id: `wipe:roster:${wipe.id}:${Math.max(0, page - 1)}`, disabled: page === 0 },
-    { type: 2, style: 2, label: "Обновить", custom_id: `wipe:roster:${wipe.id}:${page}` },
-    { type: 2, style: 2, label: "Далее", custom_id: `wipe:roster:${wipe.id}:${page + 1}`, disabled: page === pages.length - 1 }
+    { type: 2, style: 2, label: "Назад", custom_id: `wipe:roster:${wipe.id}:${Math.max(0, page - 1)}:back`, disabled: page === 0 },
+    { type: 2, style: 2, label: "Обновить", custom_id: `wipe:roster:${wipe.id}:${page}:refresh` },
+    { type: 2, style: 2, label: "Далее", custom_id: `wipe:roster:${wipe.id}:${page + 1}:next`, disabled: page === pages.length - 1 }
   ] }];
   const reviewText = canReview
     ? "\nВыберите участника: «Не зашёл» выдаст варн за отсутствие ответа или нарушенное подтверждение. Отказ с причиной — без автоматического варна."

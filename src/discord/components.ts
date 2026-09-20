@@ -226,7 +226,10 @@ export function wipeAttendanceDecisionButtons(wipeId: string, userId: string): u
 }
 
 export function warningChannelButtons(userId: string, level: 1 | 2): unknown[] {
-  return [{ type: 1, components: [{ type: 2, style: 3, label: `Снять Warn ${level}`, custom_id: `warning:remove:${userId}:${level}`, emoji: { name: "✅" } }] }];
+  return [{ type: 1, components: [
+    { type: 2, style: 3, label: `Снять Warn ${level}`, custom_id: `warning:remove:${userId}:${level}`, emoji: { name: "✅" } },
+    ...(level === 2 ? [{ type: 2, style: 4, label: "Кикнуть из привата", custom_id: `warning:kick:${userId}` }] : [])
+  ] }];
 }
 
 export function applicationEmbed(app: ApplicationRecord): DiscordEmbed {

@@ -15,7 +15,7 @@ import {
   expireWarnings, issueWarning, markWipeAttendance, openUserSelection, openWipeAbsenceModal, openWipeAttendance, openWipeModal,
   openWipeSquareModal, ownWarningStatus, permanentBlacklist, removeWarningFromChannel, respondToWipe, submitWipeAbsence,
   selectedMemberInfo, selectBlacklistUser, selectWarningUser, selectWipeAttendanceUser, sendDueWipeReminders,
-  setupAdminPanel, submitWipe, submitWipeSquare, warnUnansweredWipes
+  setupAdminPanel, submitWipe, submitWipeSquare, warnUnansweredWipes, kickFromWarning
 } from "./handlers/warnings";
 import type { DiscordInteraction, Env } from "./types";
 
@@ -91,8 +91,9 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
       ctx.waitUntil(openWipeAttendance(interaction, env).then(async response => {
         const result = await response.json<{ data: Record<string, unknown> }>();
         await editOriginalResponse(env, interaction.token, result.data);
-      }).catch(async () => {
-        await editOriginalResponse(env, interaction.token, { content: "Не удалось получить текущий состав Discord. Проверьте доступ бота к участникам (Server Members Intent) и повторите.", components: [] });
+      }).catch(async (error: unknown) => {
+        console.error("Wipe attendance failed", error instanceof Error ? error.message : "unknown error");
+        await editOriginalResponse(env, interaction.token, { content: "Не удалось открыть явку. Ошибка записана в журнал: получение состава или отправка списка Discord.", components: [] });
       }));
       return deferredEphemeral();
     }
@@ -104,6 +105,17 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
     }
     if (customId === "admin:server-publish") return publishServerStats(interaction, env);
     if (customId?.startsWith("warning:remove:")) return removeWarningFromChannel(interaction, env);
+    if (customId?.startsWith("warning:kick:")) return kickFromWarning(interaction, env);
+    if (customId?.startsWith("warning:kick-confirm:")) {
+      ctx.waitUntil(kickFromWarning(interaction, env).then(async response => {
+        const result = await response.json<{ data: Record<string, unknown> }>();
+        await editOriginalResponse(env, interaction.token, { ...result.data, components: [] });
+      }).catch(async (error: unknown) => {
+        console.error("Warning kick failed", error instanceof Error ? error.message : "unknown error");
+        await editOriginalResponse(env, interaction.token, { content: "Не удалось завершить кик. Проверьте наличие участника, право Kick Members и иерархию роли бота.", components: [] });
+      }));
+      return deferredEphemeral();
+    }
     if (customId?.startsWith("wipe:rsvp:no:")) return openWipeAbsenceModal(interaction, env);
     if (customId?.startsWith("wipe:rsvp:")) return respondToWipe(interaction, env);
     if (customId?.startsWith("wipe:square:")) return openWipeSquareModal(interaction, env);
