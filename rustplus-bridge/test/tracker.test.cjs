@@ -8,7 +8,7 @@ test("counts online time between consecutive polls", () => {
   const first = updateState({ version: 1, players: {} }, [{ steamId64: "76561198000000001", name: "Player", isOnline: true }], 1_700_000_000_000, options);
   const second = updateState(first, [{ steamId64: "76561198000000001", name: "Player", isOnline: true }], 1_700_000_060_000, options);
   assert.equal(second.players["76561198000000001"].todayMs, 60_000);
-  assert.equal(toSnapshot(second, "Server", true).players[0].wipeMs, 60_000);
+  assert.equal(toSnapshot(second, "main-server", "Server", true).players[0].wipeMs, 60_000);
 });
 
 test("does not count an offline player", () => {

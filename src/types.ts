@@ -232,10 +232,20 @@ export interface RustPlusPlayerStats {
 }
 
 export interface RustPlusSnapshot {
+  serverId: string;
   serverName: string;
   connected: boolean;
   updatedAt: number;
   wipeStartedAt?: number;
+  server?: {
+    players: number;
+    maxPlayers: number;
+    queuedPlayers: number;
+    map: string;
+    gameTime: string;
+    dayPhase: "morning" | "day" | "evening" | "night";
+    events: string[];
+  };
   players: RustPlusPlayerStats[];
 }
 

@@ -53,10 +53,11 @@ function updateState(state, members, now, options) {
   return next;
 }
 
-function toSnapshot(state, serverName, connected, now = Date.now()) {
+function toSnapshot(state, serverId, serverName, connected, now = Date.now(), server) {
   return {
-    serverName, connected, updatedAt: now,
+    serverId, serverName, connected, updatedAt: now,
     ...(state.wipeStartedAt ? { wipeStartedAt: state.wipeStartedAt } : {}),
+    ...(server ? { server } : {}),
     players: Object.values(state.players || {}).map(player => ({
       steamId64: player.steamId64, name: player.name, isOnline: player.isOnline,
       lastSeenAt: player.lastSeenAt, ...(player.sessionStartedAt ? { sessionStartedAt: player.sessionStartedAt } : {}),

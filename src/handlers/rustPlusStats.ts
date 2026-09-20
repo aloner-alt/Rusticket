@@ -1,7 +1,7 @@
 import { InteractionResponseType, ephemeral, jsonResponse } from "../discord/interactions";
 import { isPrivateModerator } from "../discord/permissions";
 import { discordRest, sendChannelMessage } from "../discord/rest";
-import { getRustPlusMessageId, getRustPlusSnapshot, saveRustPlusMessageId, saveRustPlusSnapshot } from "../storage/rustPlusStats";
+import { getRustPlusMessageId, getRustPlusSnapshot, getRustPlusSnapshots, saveRustPlusMessageId, saveRustPlusSnapshot } from "../storage/rustPlusStats";
 import type { DiscordEmbed, DiscordInteraction, Env, RustPlusPlayerStats, RustPlusSnapshot } from "../types";
 
 const MAX_SNAPSHOT_BYTES = 128 * 1024;
@@ -29,11 +29,22 @@ function validPlayer(value: unknown): value is RustPlusPlayerStats {
 function validSnapshot(value: unknown): value is RustPlusSnapshot {
   if (!value || typeof value !== "object") return false;
   const snapshot = value as Record<string, unknown>;
-  return typeof snapshot.serverName === "string" && snapshot.serverName.length > 0 && snapshot.serverName.length <= 100
+  const server = snapshot.server as Record<string, unknown> | undefined;
+  const validServer = server === undefined || (
+    typeof server.players === "number" && server.players >= 0
+    && typeof server.maxPlayers === "number" && server.maxPlayers >= 0
+    && typeof server.queuedPlayers === "number" && server.queuedPlayers >= 0
+    && typeof server.map === "string" && server.map.length <= 100
+    && typeof server.gameTime === "string" && /^\d{2}:\d{2}$/.test(server.gameTime)
+    && ["morning", "day", "evening", "night"].includes(String(server.dayPhase))
+    && Array.isArray(server.events) && server.events.length <= 20 && server.events.every(event => typeof event === "string" && event.length <= 100)
+  );
+  return typeof snapshot.serverId === "string" && /^[a-z0-9][a-z0-9_-]{1,39}$/.test(snapshot.serverId)
+    && typeof snapshot.serverName === "string" && snapshot.serverName.length > 0 && snapshot.serverName.length <= 100
     && typeof snapshot.connected === "boolean"
     && typeof snapshot.updatedAt === "number"
     && (snapshot.wipeStartedAt === undefined || typeof snapshot.wipeStartedAt === "number")
-    && Array.isArray(snapshot.players) && snapshot.players.length <= 100 && snapshot.players.every(validPlayer);
+    && validServer && Array.isArray(snapshot.players) && snapshot.players.length <= 100 && snapshot.players.every(validPlayer);
 }
 
 async function authorized(request: Request, secret: string | undefined): Promise<boolean> {
@@ -69,7 +80,13 @@ export function rustPlusEmbed(snapshot: RustPlusSnapshot): DiscordEmbed {
     fields: [
       { name: "Состояние", value: snapshot.connected && !stale ? "🟢 Подключено" : "🟠 Нет свежих данных", inline: true },
       { name: "Онлайн команды", value: `**${online}/${snapshot.players.length}**`, inline: true },
-      { name: "Обновлено", value: `<t:${Math.floor(snapshot.updatedAt / 1000)}:R>`, inline: true }
+      { name: "Обновлено", value: `<t:${Math.floor(snapshot.updatedAt / 1000)}:R>`, inline: true },
+      ...(snapshot.server ? [
+        { name: "Сервер", value: `${snapshot.server.players}/${snapshot.server.maxPlayers}${snapshot.server.queuedPlayers ? ` • очередь ${snapshot.server.queuedPlayers}` : ""}`, inline: true },
+        { name: "Игровое время", value: `${snapshot.server.gameTime} • ${{ morning: "🌅 утро", day: "☀️ день", evening: "🌇 вечер", night: "🌙 ночь" }[snapshot.server.dayPhase]}`, inline: true },
+        { name: "Карта", value: snapshot.server.map || "Неизвестна", inline: true },
+        { name: "События", value: snapshot.server.events.length ? snapshot.server.events.join("\n") : "Сейчас важных событий нет" }
+      ] : [])
     ],
     footer: { text: "Время считается только пока Rust+ bridge работает" },
     timestamp: new Date(snapshot.updatedAt).toISOString()
@@ -78,7 +95,7 @@ export function rustPlusEmbed(snapshot: RustPlusSnapshot): DiscordEmbed {
 
 async function publishSnapshot(env: Env, snapshot: RustPlusSnapshot): Promise<void> {
   const body = { embeds: [rustPlusEmbed(snapshot)], allowed_mentions: { parse: [] } };
-  const currentMessageId = await getRustPlusMessageId(env);
+  const currentMessageId = await getRustPlusMessageId(env, snapshot.serverId);
   if (currentMessageId) {
     try {
       await discordRest(env, `/channels/${env.RUST_STATS_CHANNEL_ID}/messages/${currentMessageId}`, { method: "PATCH", body: JSON.stringify(body) });
@@ -88,7 +105,22 @@ async function publishSnapshot(env: Env, snapshot: RustPlusSnapshot): Promise<vo
     }
   }
   const message = await sendChannelMessage(env, env.RUST_STATS_CHANNEL_ID, body);
-  await saveRustPlusMessageId(env, message.id);
+  await saveRustPlusMessageId(env, snapshot.serverId, message.id);
+}
+
+async function notifyChanges(env: Env, previous: RustPlusSnapshot | null, current: RustPlusSnapshot): Promise<void> {
+  if (!previous?.server || !current.connected || !current.server) return;
+  const notices: string[] = [];
+  if (previous.server.dayPhase !== current.server.dayPhase) {
+    const label = { morning: "🌅 Наступило утро", day: "☀️ Наступил день", evening: "🌇 Наступил вечер", night: "🌙 Наступила ночь" }[current.server.dayPhase];
+    notices.push(`${label} — игровое время **${current.server.gameTime}**.`);
+  }
+  const previousEvents = new Set(previous.server.events);
+  notices.push(...current.server.events.filter(event => !previousEvents.has(event)).map(event => `Новое событие: **${event}**`));
+  if (notices.length) await sendChannelMessage(env, env.RUST_STATS_CHANNEL_ID, {
+    content: `🎮 **${current.serverName}**\n${notices.join("\n")}`,
+    allowed_mentions: { parse: [] }
+  });
 }
 
 export async function receiveRustPlusSnapshot(request: Request, env: Env): Promise<Response> {
@@ -103,14 +135,16 @@ export async function receiveRustPlusSnapshot(request: Request, env: Env): Promi
   } catch { return new Response("Invalid JSON", { status: 400 }); }
   if (!validSnapshot(value)) return new Response("Invalid snapshot", { status: 400 });
   if (Math.abs(Date.now() - value.updatedAt) > 600_000) return new Response("Stale snapshot", { status: 400 });
+  const previous = await getRustPlusSnapshot(env, value.serverId);
   await saveRustPlusSnapshot(env, value);
   await publishSnapshot(env, value);
+  await notifyChanges(env, previous, value);
   return Response.json({ ok: true });
 }
 
 export async function showRustPlusStats(interaction: DiscordInteraction, env: Env): Promise<Response> {
   if (!isPrivateModerator(interaction, env)) return ephemeral("❌ Недостаточно прав.");
-  const snapshot = await getRustPlusSnapshot(env);
-  if (!snapshot) return ephemeral("⚠️ Rust+ ещё не подключён. После запуска bridge статистика появится автоматически.");
-  return jsonResponse({ type: InteractionResponseType.ChannelMessageWithSource, data: { embeds: [rustPlusEmbed(snapshot)], flags: 64 } });
+  const snapshots = await getRustPlusSnapshots(env);
+  if (!snapshots.length) return ephemeral("⚠️ Rust+ ещё не подключён. После запуска bridge статистика появится автоматически.");
+  return jsonResponse({ type: InteractionResponseType.ChannelMessageWithSource, data: { embeds: snapshots.slice(0, 10).map(rustPlusEmbed), flags: 64 } });
 }

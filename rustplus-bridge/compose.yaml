@@ -1,0 +1,21 @@
+services:
+  rustplus-bridge:
+    build: .
+    restart: unless-stopped
+    environment:
+      RUSTPLUS_SERVER_ID: ${RUSTPLUS_SERVER_ID}
+      RUSTPLUS_IP: ${RUSTPLUS_IP}
+      RUSTPLUS_PORT: ${RUSTPLUS_PORT}
+      RUSTPLUS_PLAYER_ID: ${RUSTPLUS_PLAYER_ID}
+      RUSTPLUS_PLAYER_TOKEN: ${RUSTPLUS_PLAYER_TOKEN}
+      RUSTPLUS_SERVER_NAME: ${RUSTPLUS_SERVER_NAME:-.int Rust server}
+      RUSTPLUS_WIPE_STARTED_AT: ${RUSTPLUS_WIPE_STARTED_AT:-}
+      WORKER_URL: ${WORKER_URL}
+      RUSTPLUS_BRIDGE_TOKEN: ${RUSTPLUS_BRIDGE_TOKEN}
+      POLL_SECONDS: ${POLL_SECONDS:-60}
+      TIME_ZONE: ${TIME_ZONE:-Europe/Moscow}
+    volumes:
+      - rustplus-data:/app/.data
+
+volumes:
+  rustplus-data:
