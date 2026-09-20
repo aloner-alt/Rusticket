@@ -1,4 +1,5 @@
 import { messages } from "./config/messages";
+import { enablePrivateProtection } from "./handlers/privateProtection";
 import { CustomId } from "./discord/components";
 import { EPHEMERAL, InteractionResponseType, InteractionType, deferredEphemeral, deferredPublic, ephemeral, jsonResponse } from "./discord/interactions";
 import { editOriginalResponse } from "./discord/rest";
@@ -61,6 +62,16 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
 
   const customId = interaction.data?.custom_id;
   if (interaction.type === InteractionType.MessageComponent) {
+    if (customId === "admin:private-protection" || customId === "private:claim") {
+      ctx.waitUntil((customId === "private:claim" ? claimRoles(interaction, env) : enablePrivateProtection(interaction, env)).then(async response => {
+        const result = await response.json<{ data: Record<string, unknown> }>();
+        await editOriginalResponse(env, interaction.token, result.data);
+      }).catch(async (error: unknown) => {
+        console.error("Private protection failed", error instanceof Error ? error.message : "unknown error");
+        await editOriginalResponse(env, interaction.token, { content: "Не удалось завершить настройку. Проверьте права бота на управление каналами/ролями. Уже выполненные шаги сохранены; настройку можно продолжить повторным нажатием." });
+      }));
+      return deferredEphemeral();
+    }
     if (customId === CustomId.Open) return openApplication(interaction, env);
     if (customId === CustomId.Role) return selectRole(interaction);
     if (customId?.startsWith(CustomId.SteamStepPrefix)) return openSteamAccounts(interaction, env);

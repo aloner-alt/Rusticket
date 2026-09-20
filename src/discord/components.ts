@@ -148,6 +148,7 @@ export function adminPanel(): { embeds: DiscordEmbed[]; components: unknown[] } 
       { type: 2, style: 1, label: "Steam-привязка", custom_id: "admin:member-info", emoji: { name: "🔗" } },
       { type: 2, style: 3, label: "Предупреждение о вайпе", custom_id: "admin:wipe", emoji: { name: "📢" } },
       { type: 2, style: 2, label: "Явка на вайп", custom_id: "admin:wipe-attendance", emoji: { name: "✅" } }
+      , { type: 2, style: 4, label: "Защита от гостей", custom_id: "admin:private-protection", emoji: { name: "🛡️" } }
     ] }, { type: 1, components: [
       { type: 2, style: 4, label: "Добавить в ЧС навсегда", custom_id: "admin:blacklist", emoji: { name: "⛔" } },
       { type: 2, style: 1, label: "Привязать Rust-сервер", custom_id: "admin:server-bind", emoji: { name: "🎮" } },
