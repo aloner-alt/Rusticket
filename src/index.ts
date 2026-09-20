@@ -13,6 +13,7 @@ import { acceptAgeException, banFromReview, createExceptionTicket, openException
 import { claimRoles, expireTrialRoles } from "./handlers/privateOnboarding";
 import { checkClanPlayer, checkPlayer } from "./handlers/playerCheck";
 import { bindServer, openServerBinding, publishServerStats, refreshPublishedServerStats } from "./handlers/serverStats";
+import { receiveRustPlusSnapshot, showRustPlusStats } from "./handlers/rustPlusStats";
 import {
   expireWarnings, issueWarning, markWipeAttendance, openUserSelection, openWipeAbsenceModal, openWipeAttendance, openWipeModal,
   openWipeSquareModal, ownWarningStatus, permanentBlacklist, removeWarningFromChannel, respondToWipe, submitWipeAbsence,
@@ -32,7 +33,7 @@ function validateEnvironment(env: Env): void {
     "PRIVATE_INVITE_URL", "PUBLIC_MAIN_ROLE_ID", "PRIVATE_GUILD_ID", "PRIVATE_ADMIN_CHANNEL_ID",
     "BLACKLIST_CHANNEL_ID", "PRIVATE_RUST_ROLE_ID", "PRIVATE_NEW_MEMBER_ROLE_ID", "PRIVATE_COMBAT_ROLE_ID", "PRIVATE_FARM_ROLE_ID",
     "PRIVATE_BUILDER_ROLE_ID", "PRIVATE_INDUSTRIAL_ROLE_ID", "PRIVATE_ELECTRIC_ROLE_ID", "PRIVATE_PILOT_ROLE_ID"
-    , "PRIVATE_MODERATOR_ROLE_ID", "PRIVATE_WARN_1_ROLE_ID", "PRIVATE_WARN_2_ROLE_ID", "PUNISHMENT_CATEGORY_ID", "WIPE_CHANNEL_ID", "RUST_SERVER_CONNECT", "MONITORING_SERVER_ID", "PLAYER_CHECK_CHANNEL_ID"
+    , "PRIVATE_MODERATOR_ROLE_ID", "PRIVATE_WARN_1_ROLE_ID", "PRIVATE_WARN_2_ROLE_ID", "PUNISHMENT_CATEGORY_ID", "WIPE_CHANNEL_ID", "RUST_SERVER_CONNECT", "MONITORING_SERVER_ID", "PLAYER_CHECK_CHANNEL_ID", "RUST_STATS_CHANNEL_ID"
   ];
   for (const key of required) {
     if (!env[key]) throw new Error(`Missing environment binding: ${key}`);
@@ -117,6 +118,7 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
       return deferredEphemeral();
     }
     if (customId === "admin:server-publish") return publishServerStats(interaction, env);
+    if (customId === "admin:rustplus-stats") return showRustPlusStats(interaction, env);
     if (customId?.startsWith("warning:remove:")) return removeWarningFromChannel(interaction, env);
     if (customId?.startsWith("warning:kick:")) return kickFromWarning(interaction, env);
     if (customId?.startsWith("warning:kick-confirm:")) {
@@ -181,6 +183,10 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    if (request.method === "POST" && url.pathname === "/internal/rustplus/snapshot") {
+      return receiveRustPlusSnapshot(request, env);
+    }
     if (request.method !== "POST") return new Response("Rusticket is running", { status: 200 });
     const body = await request.text();
     if (!(await verifyDiscordRequest(request, env.DISCORD_PUBLIC_KEY, body))) {

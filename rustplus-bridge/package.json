@@ -1,0 +1,19 @@
+{
+  "name": "rusticket-rustplus-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Always-on Rust+ team activity collector for Rusticket",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.cjs",
+    "check": "node --check src/index.cjs && node --check src/tracker.cjs",
+    "test": "node --test test/*.test.cjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@rustwirebot/rustplus.js": "2.6.1",
+    "dotenv": "16.6.1"
+  }
+}

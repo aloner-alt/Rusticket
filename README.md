@@ -1,5 +1,7 @@
 # Rusticket — .int Recruitment Bot
 
+Экспериментальный сборщик онлайна игроков через Rust+ находится в папке [`rustplus-bridge`](./rustplus-bridge). Он запускается отдельным постоянным Node.js-процессом и передаёт статистику в Worker; до появления хостинга разработка изолирована в ветке `feature/rustplus-player-stats`.
+
 Discord-бот для автоматической проверки и обработки заявок на вступление в клан .int. Работает как Cloudflare Worker через Discord Interactions API; VPS и постоянно запущенный процесс не нужны.
 
 ## Возможности
