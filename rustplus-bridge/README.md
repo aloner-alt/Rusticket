@@ -50,6 +50,16 @@ Each Compose project receives its own persistent statistics volume and its own D
 
 ## Run without Docker
 
+### Windows: one-click launcher while playing
+
+Double-click `start-on-pc.cmd` (or run `start-on-pc.ps1` in PowerShell). On the first run it copies `.env.example` to the ignored local `.env` and asks for any missing pairing values. Obtain `ip`, `port`, `playerId`, and `playerToken` using the pairing instructions above. The shared `RUSTPLUS_BRIDGE_TOKEN` must already be set to the same value in the Worker. The launcher never uploads `.env` to GitHub and does not display the tokens.
+
+Leave the launcher window open. It waits for `RustClient.exe`/`Rust.exe`, starts the bridge when Rust opens, and stops it after Rust closes. The bridge publishes only when the paired Steam account is online on that server. Data is incomplete while the PC or game is off. Use `start-on-pc.cmd -SetupOnly` to configure without waiting for Rust, or `start-on-pc.cmd -RunNow` for a connection test without launching Rust. Press Ctrl+C to stop. If you do not know the existing Worker secret, `start-on-pc.cmd -NewWorkerSecret -SetupOnly` generates one, saves it to Cloudflare and `.env`, and **rotates** the existing secret: update any other bridge installations before using them again.
+
+This PC launcher requires the Rust+ endpoint in the Cloudflare Worker. That endpoint is currently in the experimental `feature/rustplus-player-stats` branch; deploying only the existing `main` Worker will reject snapshots until the Rust+ integration is deployed.
+
+### Manual start
+
 ```powershell
 pnpm install
 pnpm start

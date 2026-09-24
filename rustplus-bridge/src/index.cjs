@@ -24,6 +24,7 @@ let shuttingDown = false;
 let monumentsLoaded = false;
 let oilRigMonuments = [];
 let mapWipeTime;
+let selfWasOffline = false;
 
 async function loadState() {
   try { state = JSON.parse(await fs.readFile(statePath, "utf8")); }
@@ -149,6 +150,15 @@ async function poll(rustplus) {
   try {
     const now = Date.now();
     const [members, server] = await Promise.all([getTeamInfo(rustplus), getServerStatus(rustplus)]);
+    if (process.env.RUSTPLUS_ONLY_WHEN_SELF_ONLINE === '1') {
+      const self = members.find(member => member.steamId64 === process.env.RUSTPLUS_PLAYER_ID);
+      if (!self?.isOnline) {
+        if (!selfWasOffline) console.log('Paired Steam account is offline on this server; waiting before publishing.');
+        selfWasOffline = true;
+        return;
+      }
+      selfWasOffline = false;
+    }
     const { wipeStartedAt, ...publicServer } = server;
     state = updateState(state, members, now, { pollMs, timeZone, wipeStartedAt });
     await saveState();
