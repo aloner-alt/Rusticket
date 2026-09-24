@@ -441,12 +441,25 @@ export async function expireWarnings(env: Env): Promise<void> {
 }
 
 export async function sendDueWipeReminders(env: Env): Promise<void> {
-  const page = await env.APPLICATIONS.list({ prefix: "wipe:" });
-  for (const key of page.keys) { const item = await env.APPLICATIONS.get<WipeRecord>(key.name, "json");
-    if (!item || item.sent || item.notifyAt > Date.now()) continue;
-    await sendChannelMessage(env, env.WIPE_CHANNEL_ID, { content: `@everyone 📢 **Скоро сбор на вайп: ${item.project}**\nСбор: <t:${Math.floor(item.gatherAt / 1000)}:R>\nВайп: <t:${Math.floor(item.wipeAt / 1000)}:F>\nПодключение: \`${item.connect}\`${item.mapSquare ? `\n🏗️ Спот для строительства: **${item.mapSquare}**` : ""}`, allowed_mentions: { parse: ["everyone"] } });
-    item.sent = true; await env.APPLICATIONS.put(key.name, JSON.stringify(item), { expirationTtl: 604800 });
-  }
+  let cursor: string | undefined;
+  do {
+    const page = await env.APPLICATIONS.list({ prefix: "wipe:", ...(cursor ? { cursor } : {}) });
+    cursor = page.list_complete ? undefined : page.cursor;
+    for (const key of page.keys) {
+      const item = await env.APPLICATIONS.get<WipeRecord>(key.name, "json");
+      const now = Date.now();
+      if (!item?.id || item.sent || !Number.isFinite(item.notifyAt) || !Number.isFinite(item.wipeAt)
+        || now < item.notifyAt || now >= item.wipeAt) continue;
+
+      // A separate marker survives later writes to the wipe record.
+      const reminderKey = `wipe-reminder:${item.wipeAt}:${item.connect.toLowerCase()}`;
+      if (await env.APPLICATIONS.get(reminderKey)) continue;
+      await env.APPLICATIONS.put(reminderKey, String(now), { expirationTtl: 2_592_000 });
+      item.sent = true;
+      await env.APPLICATIONS.put(key.name, JSON.stringify(item), { expirationTtl: 2_592_000 });
+      await sendChannelMessage(env, env.WIPE_CHANNEL_ID, { content: `@everyone 📢 **Скоро сбор на вайп: ${item.project}**\nСбор: <t:${Math.floor(item.gatherAt / 1000)}:R>\nВайп: <t:${Math.floor(item.wipeAt / 1000)}:F>\nПодключение: \`${item.connect}\`${item.mapSquare ? `\n🏗️ Спот для строительства: **${item.mapSquare}**` : ""}`, allowed_mentions: { parse: ["everyone"] } });
+    }
+  } while (cursor);
 }
 
 export async function warnUnansweredWipes(env: Env): Promise<void> {
