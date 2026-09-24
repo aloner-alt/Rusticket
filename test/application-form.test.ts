@@ -29,5 +29,6 @@ describe("recruitment switch", () => {
   it("exposes recruitment management in the private admin panel", () => {
     const panel = adminPanel() as { components: Array<{ components: Array<{ custom_id?: string }> }> };
     expect(panel.components.flatMap(row => row.components.map(button => button.custom_id))).toContain("admin:recruitment-toggle");
+    expect(panel.components.flatMap(row => row.components.map(button => button.custom_id))).toContain("admin:rustplus-stats");
   });
 });

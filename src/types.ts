@@ -29,6 +29,8 @@ export interface Env {
   RUST_SERVER_CONNECT: string;
   MONITORING_SERVER_ID: string;
   PLAYER_CHECK_CHANNEL_ID: string;
+  RUST_STATS_CHANNEL_ID: string;
+  RUSTPLUS_BRIDGE_TOKEN?: string;
   APPLICATIONS: KVNamespace;
 }
 
@@ -216,6 +218,35 @@ export interface RustServerConfig {
   connect: string;
   monitoringId: string;
   publicMessageId?: string;
+}
+
+export interface RustPlusPlayerStats {
+  steamId64: string;
+  name: string;
+  isOnline: boolean;
+  lastSeenAt: number;
+  sessionStartedAt?: number;
+  todayMs: number;
+  wipeMs: number;
+  trackedMs: number;
+}
+
+export interface RustPlusSnapshot {
+  serverId: string;
+  serverName: string;
+  connected: boolean;
+  updatedAt: number;
+  wipeStartedAt?: number;
+  server?: {
+    players: number;
+    maxPlayers: number;
+    queuedPlayers: number;
+    map: string;
+    gameTime: string;
+    dayPhase: "morning" | "day" | "evening" | "night";
+    events: string[];
+  };
+  players: RustPlusPlayerStats[];
 }
 
 export interface WipeRecord {

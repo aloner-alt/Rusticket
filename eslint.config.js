@@ -2,7 +2,7 @@ import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["node_modules/**", ".wrangler/**", ".wrangler-dry-run/**", "dist/**", "coverage/**", "eslint.config.js"] },
+  { ignores: ["node_modules/**", ".wrangler/**", ".wrangler-dry-run/**", "dist/**", "coverage/**", "eslint.config.js", "rustplus-bridge/**/*.cjs"] },
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   {

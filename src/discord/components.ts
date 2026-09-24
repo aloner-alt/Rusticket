@@ -157,6 +157,8 @@ export function adminPanel(): { embeds: DiscordEmbed[]; components: unknown[] } 
       { type: 2, style: 2, label: "Статистика игрока клана", custom_id: "admin:clan-stats", emoji: { name: "📊" } },
       { type: 2, style: 3, label: "Обновить Vipe Info", custom_id: "admin:server-publish", emoji: { name: "🔄" } },
       { type: 2, style: 5, label: "Стата .int на Mirage", url: "https://miragerust.gg/clan/190", emoji: { name: "📈" } }
+    ] }, { type: 1, components: [
+      { type: 2, style: 1, label: "Rust+ онлайн и статистика", custom_id: "admin:rustplus-stats", emoji: { name: "🟢" } }
     ] }]
   };
 }

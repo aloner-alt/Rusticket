@@ -8,4 +8,5 @@ node_modules/
 dist/
 coverage/
 *.log
+.data/
 .DS_Store

@@ -1,5 +1,7 @@
 # Rusticket — .int Recruitment Bot
 
+Сборщик онлайна игроков через Rust+ находится в папке [`rustplus-bridge`](./rustplus-bridge). На Windows его можно запускать только во время игры через `start-on-pc.cmd`; он передаёт данные в Worker, а тикеты продолжают работать на Cloudflare независимо от ПК.
+
 Discord-бот для автоматической проверки и обработки заявок на вступление в клан .int. Работает как Cloudflare Worker через Discord Interactions API; VPS и постоянно запущенный процесс не нужны.
 
 ## Возможности
