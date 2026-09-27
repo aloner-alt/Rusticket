@@ -23,7 +23,7 @@ const containersMenu = keyboard(
   [{ text: "🎮 Rust+", callback_data: "service:rustplus" }],
   [{ text: "⬅️ Назад", callback_data: "menu:main" }]
 );
-const homeText = "🛡 <b>Управление сервером Aloner</b>\n\n☁️ Telegram-бот работает на Cloudflare и останется доступен, даже если сервер Aloner выключится или перестанет отвечать.\n\nВыберите раздел:";
+const homeText = "🛡 <b>Управление сервером Aloner</b>\n\nВыберите раздел:";
 const serviceMenu = (service: string) => keyboard(
   [{ text: "📊 Статус", callback_data: `action:status:${service}` }, { text: "📜 Логи", callback_data: `action:logs:${service}` }],
   [{ text: "🔄 Перезапустить", callback_data: `action:restart:${service}` }],
