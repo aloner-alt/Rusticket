@@ -6,7 +6,10 @@ import { editOriginalResponse } from "./discord/rest";
 import { verifyDiscordRequest } from "./discord/verification";
 import { openApplication, openSteamAccounts, saveApplicationDetails, selectRole } from "./handlers/openApplication";
 import { setupRecruitment } from "./handlers/setupRecruitment";
-import { toggleRecruitment } from "./handlers/recruitmentControl";
+import { ensureStaffRecruitmentPanel, refreshRecruitmentCriteriaPanel, toggleRecruitment, toggleStaffRecruitment } from "./handlers/recruitmentControl";
+import { closeStaleTicket, confirmStaleTicket, ensureTicketAdminPanel, openAdditionalQuestionModal, openTicketAdmin, removeAdditionalQuestion, saveAdditionalQuestion, selectCriteriaRole, showStaleTickets } from "./handlers/ticketAdmin";
+import { acceptStaffApplication, closeStaffTicket, openStaffApplication, openStaffApplicationStep, openStaffRejectModal, rejectStaffApplication, saveStaffApplicationStep } from "./handlers/staffRecruitment";
+import { ensureStaffAdminPanel, expireStaffBans, openStaffBanModal, openStaffBanUser, reviewStaffBan, showStaffMemo, submitStaffBan } from "./handlers/staffAdmin";
 import { submitApplication } from "./handlers/submitApplication";
 import { acceptApplication, cancelClose, closeAcceptedTickets, closeTicket, confirmClose, inviteCandidateToVoice, openRejectModal, rejectApplication, retryPendingOnboarding } from "./handlers/staffActions";
 import { acceptAgeException, banFromReview, createExceptionTicket, openExceptionModal, unbanFromReview, unbanUserFromLog } from "./handlers/reviewModeration";
@@ -17,7 +20,7 @@ import { receiveRustPlusSnapshot, showRustPlusStats } from "./handlers/rustPlusS
 import {
   expireWarnings, issueWarning, markWipeAttendance, openUserSelection, openWipeAbsenceModal, openWipeAttendance, openWipeModal,
   openWipeSquareModal, ownWarningStatus, permanentBlacklist, removeWarningFromChannel, respondToWipe, submitWipeAbsence,
-  selectedMemberInfo, selectBlacklistUser, selectWarningUser, selectWipeAttendanceUser, sendDueWipeReminders,
+  selectedMemberInfo, selectBlacklistUser, selectWarningUser, selectWipeAttendanceUser, previewAllWipeAttendance, confirmWipeAttendance, sendDueWipeReminders,
   setupAdminPanel, submitWipe, submitWipeSquare, warnUnansweredWipes, kickFromWarning
 } from "./handlers/warnings";
 import type { DiscordInteraction, Env } from "./types";
@@ -29,7 +32,7 @@ async function editPlayerCheckError(interaction: DiscordInteraction, env: Env): 
 function validateEnvironment(env: Env): void {
   const required: Array<keyof Env> = [
     "DISCORD_APPLICATION_ID", "DISCORD_PUBLIC_KEY", "DISCORD_BOT_TOKEN", "DISCORD_GUILD_ID",
-    "STEAM_API_KEY", "TICKETS_CHANNEL_ID", "TICKETS_CATEGORY_ID", "LOG_CHANNEL_ID", "APPLICATIONS",
+    "STEAM_API_KEY", "TICKETS_CHANNEL_ID", "TICKETS_CATEGORY_ID", "LOG_CHANNEL_ID", "APPLICATIONS", "STAFF_APPLICATION_ROLE_ID", "STAFF_APPLICATION_CHANNEL_ID",
     "PRIVATE_INVITE_URL", "PUBLIC_MAIN_ROLE_ID", "PRIVATE_GUILD_ID", "PRIVATE_ADMIN_CHANNEL_ID",
     "BLACKLIST_CHANNEL_ID", "PRIVATE_RUST_ROLE_ID", "PRIVATE_NEW_MEMBER_ROLE_ID", "PRIVATE_COMBAT_ROLE_ID", "PRIVATE_FARM_ROLE_ID",
     "PRIVATE_BUILDER_ROLE_ID", "PRIVATE_INDUSTRIAL_ROLE_ID", "PRIVATE_ELECTRIC_ROLE_ID", "PRIVATE_PILOT_ROLE_ID"
@@ -75,6 +78,15 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
       return deferredEphemeral();
     }
     if (customId === CustomId.Open) return openApplication(interaction, env);
+    if (customId === "staff-application:open") return openStaffApplication(interaction, env);
+    if (customId?.startsWith("staff-application:step:")) return openStaffApplicationStep(interaction, env);
+    if (customId === "staff-review:accept") return acceptStaffApplication(interaction, env);
+    if (customId === "staff-review:reject") return openStaffRejectModal(interaction, env);
+    if (customId === "staff-review:close") return closeStaffTicket(interaction, env);
+    if (customId === "staff-admin:memo") return showStaffMemo(interaction, env);
+    if (customId === "staff-admin:ban") return openStaffBanUser(interaction, env);
+    if (customId === "staff-admin:ban-user") return openStaffBanModal(interaction, env);
+    if (customId?.startsWith("staff-admin:ban-approve:") || customId?.startsWith("staff-admin:ban-reject:")) return reviewStaffBan(interaction, env);
     if (customId === CustomId.Role) return selectRole(interaction, env);
     if (customId?.startsWith(CustomId.SteamStepPrefix)) return openSteamAccounts(interaction, env);
     if (customId === CustomId.Accept) return acceptApplication(interaction, env);
@@ -99,7 +111,24 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
     if (customId === "admin:warn-user") return selectWarningUser(interaction, env);
     if (customId === "admin:member-info-user") return selectedMemberInfo(interaction, env);
     if (customId === "admin:blacklist-user") return selectBlacklistUser(interaction, env);
-    if (customId === "admin:recruitment-toggle") return toggleRecruitment(interaction, env);
+    if (customId === "admin:recruitment-toggle") return openTicketAdmin(interaction, env);
+    if (customId === "ticket:toggle") return toggleRecruitment(interaction, env);
+    if (customId === "ticket:staff-toggle") return toggleStaffRecruitment(interaction, env);
+    if (customId === "ticket:criteria") return selectCriteriaRole(interaction, env, "set");
+    if (customId === "ticket:criteria-remove") return selectCriteriaRole(interaction, env, "remove");
+    if (customId === "ticket:criteria-role:set") return openAdditionalQuestionModal(interaction, env);
+    if (customId === "ticket:criteria-role:remove") return removeAdditionalQuestion(interaction, env);
+    if (customId === "ticket:stale" || customId === "ticket:stale-select" || customId?.startsWith("ticket:stale-confirm:")) {
+      const task = customId === "ticket:stale" ? showStaleTickets : customId === "ticket:stale-select" ? confirmStaleTicket : closeStaleTicket;
+      ctx.waitUntil(task(interaction, env).then(async response => {
+        const result = await response.json<{ data: Record<string, unknown> }>();
+        await editOriginalResponse(env, interaction.token, result.data);
+      }).catch(async (error: unknown) => {
+        console.error("Ticket admin action failed", error instanceof Error ? error.message : "unknown error");
+        await editOriginalResponse(env, interaction.token, { content: "⚠️ Не удалось обработать тикет. Повторите попытку и проверьте права бота." }).catch(() => undefined);
+      }));
+      return deferredEphemeral();
+    }
     if (customId === "admin:wipe") return openWipeModal(interaction, env);
     if (customId === "admin:wipe-attendance" || customId?.startsWith("wipe:roster:")) {
       ctx.waitUntil(openWipeAttendance(interaction, env).then(async response => {
@@ -134,7 +163,15 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
     if (customId?.startsWith("wipe:rsvp:no:")) return openWipeAbsenceModal(interaction, env);
     if (customId?.startsWith("wipe:rsvp:")) return respondToWipe(interaction, env);
     if (customId?.startsWith("wipe:square:")) return openWipeSquareModal(interaction, env);
-    if (customId?.startsWith("wipe:attendance-user:")) return selectWipeAttendanceUser(interaction, env);
+    if (customId?.startsWith("wipe:attendance-batch:")) return selectWipeAttendanceUser(interaction, env);
+    if (customId?.startsWith("wipe:attendance-all:")) return previewAllWipeAttendance(interaction, env);
+    if (customId?.startsWith("wipe:attendance-confirm:") || customId?.startsWith("wipe:attendance-cancel:")) {
+      ctx.waitUntil(confirmWipeAttendance(interaction, env).then(async response => {
+        const result = await response.json<{ data: Record<string, unknown> }>();
+        await editOriginalResponse(env, interaction.token, { ...result.data, components: [] });
+      }).catch(async () => editOriginalResponse(env, interaction.token, { content: "Не удалось сохранить явку или выдать варны. Повторите проверку.", components: [] })));
+      return deferredEphemeral();
+    }
     if (customId?.startsWith("wipe:present:") || customId?.startsWith("wipe:absent:")) {
       ctx.waitUntil(markWipeAttendance(interaction, env).then(async response => {
         const result = await response.json<{ data: Record<string, unknown> }>();
@@ -150,6 +187,18 @@ async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionCo
     const role = customId.slice(CustomId.FormPrefix.length);
     return saveApplicationDetails(interaction, env, role);
   }
+
+  if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith("ticket:criteria-modal:")) return saveAdditionalQuestion(interaction, env);
+  if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith("staff-admin:ban-modal:")) return submitStaffBan(interaction, env);
+  if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith("staff-application:form:")) {
+    const match = /^staff-application:form:([123]):(.+)$/.exec(customId);
+    if (!match) return ephemeral(messages.invalidData);
+    const stepValue = match[1];
+    const draftId = match[2];
+    if (!stepValue || !draftId) return ephemeral(messages.invalidData);
+    return saveStaffApplicationStep(interaction, env, Number(stepValue) as 1 | 2 | 3, draftId);
+  }
+  if (interaction.type === InteractionType.ModalSubmit && customId === "staff-review:reject-modal") return rejectStaffApplication(interaction, env);
 
   if (interaction.type === InteractionType.ModalSubmit && customId?.startsWith(CustomId.SteamFormPrefix)) {
     const draftId = customId.slice(CustomId.SteamFormPrefix.length);
@@ -206,6 +255,6 @@ export default {
     }
   },
   scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
-    ctx.waitUntil(Promise.all([maintainPrivateEntry(env), expireWarnings(env).then(() => warnUnansweredWipes(env)), expireTrialRoles(env), closeAcceptedTickets(env), sendDueWipeReminders(env), refreshPublishedServerStats(env), retryPendingOnboarding(env)]).then(() => undefined));
+    ctx.waitUntil(Promise.all([maintainPrivateEntry(env), expireWarnings(env).then(() => warnUnansweredWipes(env)), expireTrialRoles(env), expireStaffBans(env), closeAcceptedTickets(env), sendDueWipeReminders(env), refreshPublishedServerStats(env), retryPendingOnboarding(env), refreshRecruitmentCriteriaPanel(env), ensureTicketAdminPanel(env), ensureStaffRecruitmentPanel(env), ensureStaffAdminPanel(env)]).then(() => undefined));
   }
 } satisfies ExportedHandler<Env>;

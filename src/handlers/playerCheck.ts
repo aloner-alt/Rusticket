@@ -48,7 +48,7 @@ export function playerEmbed(player: PlayerInspection): DiscordEmbed {
 export async function checkClanPlayer(interaction: DiscordInteraction, env: Env): Promise<void> {
   if (!isPrivateModerator(interaction, env)) { await editOriginalResponse(env, interaction.token, { content: "❌ Недостаточно прав." }); return; }
   const userId = interaction.data?.values?.[0]; if (!userId) { await editOriginalResponse(env, interaction.token, { content: "❌ Пользователь не выбран." }); return; }
-  const link = await getMemberLink(env, userId); if (!link) { await editOriginalResponse(env, interaction.token, { content: `⚠️ Для <@${userId}> Steam-привязка не найдена. Пользователь должен выполнить \`/claim\`.` }); return; }
+  const link = await getMemberLink(env, userId); if (!link) { await editOriginalResponse(env, interaction.token, { content: `⚠️ Для <@${userId}> Steam-привязка не найдена. Если заявка принята, пользователь должен нажать «Получить роли» в канале **#получить-роли** на привате.` }); return; }
   const player = await inspectPlayer(env, link.steamId64); if (!player) { await editOriginalResponse(env, interaction.token, { content: "❌ Steam-профиль не найден." }); return; }
   const embed = playerEmbed(player); embed.title = `📊 ${link.steamName} | ${link.realName}`;
   await editOriginalResponse(env, interaction.token, { content: `Участник: <@${userId}>`, embeds: [embed] });

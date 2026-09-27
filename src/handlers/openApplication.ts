@@ -33,7 +33,8 @@ export async function selectRole(interaction: DiscordInteraction, env: Env): Pro
   if (!(await getRecruitmentState(env)).open) return ephemeral(RECRUITMENT_CLOSED_MESSAGE);
   const role = interaction.data?.values?.[0];
   if (!role || !isRoleKey(role)) return ephemeral(messages.invalidData);
-  return jsonResponse({ type: InteractionResponseType.Modal, data: applicationModal(role) });
+  const state = await getRecruitmentState(env);
+  return jsonResponse({ type: InteractionResponseType.Modal, data: applicationModal(role, state.additionalCriteria?.[role]) });
 }
 
 export async function saveApplicationDetails(interaction: DiscordInteraction, env: Env, roleValue: string): Promise<Response> {
@@ -44,6 +45,8 @@ export async function saveApplicationDetails(interaction: DiscordInteraction, en
   const dailyOnline = parseStrictInteger(modalValue(interaction, "daily_online") ?? "");
   const realName = modalValue(interaction, "real_name")?.trim();
   const applicantComment = modalValue(interaction, "comment")?.trim() || undefined;
+  const additionalAnswer = modalValue(interaction, "additional_answer")?.trim() || undefined;
+  const additionalQuestion = (await getRecruitmentState(env)).additionalCriteria?.[roleValue];
   if (age === null || dailyOnline === null || age > 99 || dailyOnline > 24 || !realName) {
     return ephemeral(messages.invalidData);
   }
@@ -55,7 +58,8 @@ export async function saveApplicationDetails(interaction: DiscordInteraction, en
     dailyOnline,
     role: roleValue,
     realName,
-    ...(applicantComment ? { applicantComment } : {})
+    ...(applicantComment ? { applicantComment } : {}),
+    ...(additionalQuestion && additionalAnswer ? { additionalQuestion, additionalAnswer } : {})
   };
   await saveApplicationDraft(env, draft);
   return jsonResponse({

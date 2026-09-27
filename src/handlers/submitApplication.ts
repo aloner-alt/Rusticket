@@ -86,7 +86,7 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
     await finish(env, interaction.token, RECRUITMENT_CLOSED_MESSAGE);
     return;
   }
-  const { age, dailyOnline, realName, applicantComment } = draft;
+  const { age, dailyOnline, realName, applicantComment, additionalQuestion, additionalAnswer } = draft;
   const roleValue = draft.role;
 
   const userBan = await getUserBan(env, user.id);
@@ -170,6 +170,7 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
         ...(inventory.limited !== undefined ? { inventoryLimited: inventory.limited } : {}),
         ...(steam.steamName ? { steamName: steam.steamName } : {}),
         ...(applicantComment ? { applicantComment } : {}),
+        ...(additionalQuestion && additionalAnswer ? { additionalQuestion, additionalAnswer } : {}),
         rejectionReason: "Недостаточный возраст", createdAt: new Date().toISOString()
       });
       return;
@@ -186,7 +187,8 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
       ...(inventory.totalUnique !== undefined ? { inventoryTotalUnique: inventory.totalUnique } : {}),
       ...(inventory.limited !== undefined ? { inventoryLimited: inventory.limited } : {}),
       ...(steam.steamName ? { steamName: steam.steamName } : {}),
-      ...(applicantComment ? { applicantComment } : {})
+      ...(applicantComment ? { applicantComment } : {}),
+      ...(additionalQuestion && additionalAnswer ? { additionalQuestion, additionalAnswer } : {})
     });
     await finish(env, interaction.token, `✅ **Заявка создана**\n\nДанные об играх и часах Steam скрыты, поэтому заявку вручную рассмотрит Staff.\n\nВаш тикет: <#${application.ticketChannelId}>`);
     await logEvent(env, "⚠️ Создан тикет со скрытыми данными Steam", [
@@ -234,6 +236,7 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
       ...(inventory.totalUnique !== undefined ? { inventoryTotalUnique: inventory.totalUnique } : {}),
       ...(inventory.limited !== undefined ? { inventoryLimited: inventory.limited } : {}),
       ...(applicantComment ? { applicantComment } : {}),
+      ...(additionalQuestion && additionalAnswer ? { additionalQuestion, additionalAnswer } : {}),
       rejectionReason: "Недостаточный возраст", createdAt: new Date().toISOString()
     });
     return;
@@ -255,6 +258,7 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
       ...(inventory.totalUnique !== undefined ? { inventoryTotalUnique: inventory.totalUnique } : {}),
       ...(inventory.limited !== undefined ? { inventoryLimited: inventory.limited } : {}),
       ...(applicantComment ? { applicantComment } : {}),
+      ...(additionalQuestion && additionalAnswer ? { additionalQuestion, additionalAnswer } : {}),
       rejectionReason: "Недостаточно часов Rust", createdAt: new Date().toISOString()
     };
     await saveRejectedReview(env, review);
@@ -283,7 +287,8 @@ export async function submitApplication(interaction: DiscordInteraction, env: En
     ...(inventory.pricedUnique !== undefined ? { inventoryPricedUnique: inventory.pricedUnique } : {}),
     ...(inventory.totalUnique !== undefined ? { inventoryTotalUnique: inventory.totalUnique } : {}),
     ...(inventory.limited !== undefined ? { inventoryLimited: inventory.limited } : {}),
-    ...(applicantComment ? { applicantComment } : {})
+    ...(applicantComment ? { applicantComment } : {}),
+    ...(additionalQuestion && additionalAnswer ? { additionalQuestion, additionalAnswer } : {})
   });
   await finish(env, interaction.token, messages.applicationCreated(application.ticketChannelId));
   await logEvent(env, "✅ Тикет заявки создан", [

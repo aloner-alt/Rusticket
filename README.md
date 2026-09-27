@@ -225,6 +225,7 @@ npm run dev
 | `TICKETS_CATEGORY_ID` | Категория тикетов | Да |
 | `LOG_CHANNEL_ID` | Канал аудита | Да |
 | `STAFF_ROLE_ID` | Staff Role | Нет; есть значение по умолчанию |
+| `TICKET_REVIEW_ROLE_ID` | Дополнительная роль, которая может видеть, проверять и отклонять тикеты на Public | Нет; заполнить после получения ID роли |
 | `PRIVATE_NEW_MEMBER_ROLE_ID` | Временная роль новичка на приватном сервере | Да |
 | `BLACKLIST_CHANNEL_ID` | Канал постоянного ЧС клана | Да |
 

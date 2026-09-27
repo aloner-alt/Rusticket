@@ -8,6 +8,9 @@ export interface Env {
   TICKETS_CATEGORY_ID: string;
   LOG_CHANNEL_ID: string;
   STAFF_ROLE_ID?: string;
+  TICKET_REVIEW_ROLE_ID?: string;
+  STAFF_APPLICATION_ROLE_ID: string;
+  STAFF_APPLICATION_CHANNEL_ID: string;
   PRIVATE_INVITE_URL: string;
   PUBLIC_MAIN_ROLE_ID: string;
   PRIVATE_GUILD_ID: string;
@@ -132,6 +135,8 @@ export interface ApplicationRecord {
   inventoryTotalUnique?: number;
   inventoryLimited?: boolean;
   applicantComment?: string;
+  additionalQuestion?: string;
+  additionalAnswer?: string;
   manualException?: boolean;
   recruiterComment?: string;
   exceptionStaffId?: string;
@@ -153,6 +158,42 @@ export interface ApplicationDraft {
   role: RoleKey;
   realName: string;
   applicantComment?: string;
+  additionalQuestion?: string;
+  additionalAnswer?: string;
+}
+
+export type StaffApplicationStatus = "PENDING" | "ACCEPTED" | "REJECTED";
+
+export interface StaffApplicationAnswers {
+  realName: string;
+  age: string;
+  timezone: string;
+  dailyAvailability: string;
+  contactHours: string;
+  meetings: string;
+  adminExperience: string;
+  conflictAndRules: string;
+  situations: string;
+  motivation: string;
+}
+
+export interface StaffApplicationDraft {
+  id: string;
+  applicantId: string;
+  applicantUsername: string;
+  answers: Partial<StaffApplicationAnswers>;
+}
+
+export interface StaffApplicationRecord extends StaffApplicationAnswers {
+  applicantId: string;
+  applicantUsername: string;
+  ticketChannelId: string;
+  cardMessageId: string;
+  status: StaffApplicationStatus;
+  createdAt: string;
+  decidedAt?: string;
+  staffId?: string;
+  rejectionReason?: string;
 }
 
 export interface BanRecord {
@@ -183,6 +224,8 @@ export interface RejectedReview {
   inventoryTotalUnique?: number;
   inventoryLimited?: boolean;
   applicantComment?: string;
+  additionalQuestion?: string;
+  additionalAnswer?: string;
   rejectionReason: string;
   createdAt: string;
 }
@@ -275,4 +318,18 @@ export interface WipeAttendanceRecord {
   present?: boolean;
   moderatorId?: string;
   updatedAt: number;
+}
+
+export interface StaffBanRequest {
+  id: string;
+  requesterId: string;
+  targetUserId: string;
+  reason: string;
+  durationMs?: number;
+  createdAt: number;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  reviewerId?: string;
+  reviewedAt?: number;
+  approvalMessageId?: string;
+  unbanAt?: number;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acceptedTicketCloseDue } from "../src/handlers/staffActions";
+import { acceptedTicketCloseDue, privateOnboardingMessage } from "../src/handlers/staffActions";
 import type { ApplicationRecord } from "../src/types";
 
 function application(status: ApplicationRecord["status"], decidedAt?: string): ApplicationRecord {
@@ -24,5 +24,15 @@ describe("accepted ticket lifecycle", () => {
 
   it("never closes a pending ticket through the accepted-ticket job", () => {
     expect(acceptedTicketCloseDue(application("PENDING"), Date.parse("2026-09-21T11:00:00.000Z"))).toBe(false);
+  });
+});
+
+describe("accepted candidate onboarding", () => {
+  it("directs candidates to the role button instead of a slash command", () => {
+    const message = privateOnboardingMessage("https://discord.gg/example");
+    expect(message).toContain("https://discord.gg/example");
+    expect(message).toContain("#получить-роли");
+    expect(message).toContain("«Получить роли»");
+    expect(message).not.toContain("/claim");
   });
 });

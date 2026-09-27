@@ -63,6 +63,7 @@ export async function createExceptionTicket(interaction: DiscordInteraction, env
     ...(review.inventoryTotalUnique !== undefined ? { inventoryTotalUnique: review.inventoryTotalUnique } : {}),
     ...(review.inventoryLimited !== undefined ? { inventoryLimited: review.inventoryLimited } : {}),
     ...(review.applicantComment ? { applicantComment: review.applicantComment } : {}),
+    ...(review.additionalQuestion && review.additionalAnswer ? { additionalQuestion: review.additionalQuestion, additionalAnswer: review.additionalAnswer } : {}),
     manualException: true,
     recruiterComment,
     exceptionStaffId: staff.id
@@ -133,6 +134,7 @@ export async function acceptAgeException(interaction: DiscordInteraction, env: E
     ...(review.inventoryTotalUnique !== undefined ? { inventoryTotalUnique: review.inventoryTotalUnique } : {}),
     ...(review.inventoryLimited !== undefined ? { inventoryLimited: review.inventoryLimited } : {}),
     ...(review.applicantComment ? { applicantComment: review.applicantComment } : {}),
+    ...(review.additionalQuestion && review.additionalAnswer ? { additionalQuestion: review.additionalQuestion, additionalAnswer: review.additionalAnswer } : {}),
     manualException: true,
     recruiterComment: "Прямое принятие Staff — исключение по возрасту",
     exceptionStaffId: staff.id
@@ -141,7 +143,7 @@ export async function acceptAgeException(interaction: DiscordInteraction, env: E
   await deleteRejectedReview(env, id);
   await editOriginalResponse(env, interaction.token, {
     content: onboardingDelivered
-      ? `✅ Кандидат принят как исключение. Ссылка на приват и команда /claim отправлены в <#${application.ticketChannelId}>.`
+      ? `✅ Кандидат принят как исключение. Ссылка на приват и инструкция по получению ролей отправлены в <#${application.ticketChannelId}>.`
       : `✅ Кандидат принят как исключение. Инструкция будет повторно отправлена автоматически. Тикет: <#${application.ticketChannelId}>.`,
     components: []
   });

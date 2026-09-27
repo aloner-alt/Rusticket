@@ -1,5 +1,5 @@
 import { COOLDOWN_SECONDS } from "../config/requirements";
-import type { ApplicationDraft, ApplicationRecord, BanRecord, Env, MemberLink, RejectedReview, RustServerConfig, WarningRecord } from "../types";
+import type { ApplicationDraft, ApplicationRecord, BanRecord, Env, MemberLink, RejectedReview, RoleKey, RustServerConfig, StaffApplicationDraft, StaffApplicationRecord, WarningRecord } from "../types";
 
 const applicantKey = (userId: string) => `active:${userId}`;
 const channelKey = (channelId: string) => `channel:${channelId}`;
@@ -14,20 +14,65 @@ const acceptedKey = (userId: string) => `accepted:${userId}`;
 const draftKey = (id: string) => `draft:${id}`;
 const SERVER_CONFIG_KEY = "rust-server:primary";
 const RECRUITMENT_STATE_KEY = "recruitment:state";
+const staffDraftKey = (id: string) => `staff-draft:${id}`;
+const staffApplicantKey = (userId: string) => `staff-active:${userId}`;
+const staffChannelKey = (channelId: string) => `staff-channel:${channelId}`;
 
 export interface RecruitmentState {
   open: boolean;
+  additionalCriteria?: Partial<Record<RoleKey, string>>;
+  staffOpen?: boolean;
+  staffPanelMessageId?: string;
   updatedAt?: number;
   updatedBy?: string;
   panelMessageId?: string;
 }
 
 export async function getRecruitmentState(env: Env): Promise<RecruitmentState> {
-  return await env.APPLICATIONS.get<RecruitmentState>(RECRUITMENT_STATE_KEY, "json") ?? { open: true };
+  const state = await env.APPLICATIONS.get<RecruitmentState>(RECRUITMENT_STATE_KEY, "json");
+  if (!state) return { open: true, staffOpen: true };
+  // States created before the separate Staff recruitment existed do not have
+  // staffOpen. They must migrate to open instead of silently closing the form.
+  return { ...state, staffOpen: state.staffOpen ?? true };
 }
 
 export function saveRecruitmentState(env: Env, state: RecruitmentState): Promise<void> {
   return env.APPLICATIONS.put(RECRUITMENT_STATE_KEY, JSON.stringify(state));
+}
+
+export function saveStaffApplicationDraft(env: Env, draft: StaffApplicationDraft): Promise<void> {
+  return env.APPLICATIONS.put(staffDraftKey(draft.id), JSON.stringify(draft), { expirationTtl: 1800 });
+}
+
+export function getStaffApplicationDraft(env: Env, id: string): Promise<StaffApplicationDraft | null> {
+  return env.APPLICATIONS.get<StaffApplicationDraft>(staffDraftKey(id), "json");
+}
+
+export function deleteStaffApplicationDraft(env: Env, id: string): Promise<void> {
+  return env.APPLICATIONS.delete(staffDraftKey(id));
+}
+
+export function getActiveStaffApplication(env: Env, userId: string): Promise<StaffApplicationRecord | null> {
+  return env.APPLICATIONS.get<StaffApplicationRecord>(staffApplicantKey(userId), "json");
+}
+
+export function getStaffApplicationByChannel(env: Env, channelId: string): Promise<StaffApplicationRecord | null> {
+  return env.APPLICATIONS.get<StaffApplicationRecord>(staffChannelKey(channelId), "json");
+}
+
+export async function saveStaffApplication(env: Env, application: StaffApplicationRecord): Promise<void> {
+  const value = JSON.stringify(application);
+  await Promise.all([
+    env.APPLICATIONS.put(staffApplicantKey(application.applicantId), value),
+    env.APPLICATIONS.put(staffChannelKey(application.ticketChannelId), value)
+  ]);
+}
+
+export async function closeStaffApplication(env: Env, application: StaffApplicationRecord): Promise<void> {
+  await Promise.all([
+    env.APPLICATIONS.delete(staffApplicantKey(application.applicantId)),
+    env.APPLICATIONS.delete(staffChannelKey(application.ticketChannelId))
+  ]);
 }
 
 export async function isCoolingDown(env: Env, userId: string): Promise<boolean> {

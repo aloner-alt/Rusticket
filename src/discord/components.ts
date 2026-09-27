@@ -1,5 +1,5 @@
 import { ROLE_REQUIREMENTS } from "../config/requirements";
-import type { ApplicationRecord, DiscordEmbed } from "../types";
+import type { ApplicationRecord, DiscordEmbed, StaffApplicationRecord } from "../types";
 
 export const CustomId = {
   Open: "application:open",
@@ -19,11 +19,20 @@ export const CustomId = {
 export function recruitmentPanel(open = true): { embeds: DiscordEmbed[]; components: unknown[] } {
   return {
     embeds: [{
-      title: open ? "🛡️ Заявка в клан .int" : "🔒 Набор в клан .int закрыт",
+      title: open ? "🔥 Клан .int открывает набор" : "🔒 Набор в клан .int закрыт",
       description: open
-        ? "Хотите вступить в **.int**?\n\nНажмите кнопку ниже и заполните анкету. Перед созданием тикета бот автоматически проверит основные требования к кандидату."
-        : "Сейчас новые заявки временно не принимаются. Следите за обновлениями — Staff откроет набор этой же панелью.",
-      color: open ? 0x2ecc71 : 0xe74c3c
+        ? "Ищем активных игроков на долгую игру. Выберите **одно** направление и заполните анкету кнопкой ниже.\n\n**Для всех:** возраст 15+, онлайн от 6 часов в день (ориентир — 6–8), адекватность, дисциплина, выполнение коллов и игра на результат."
+        : "Сейчас заявки не принимаются. Ниже — требования на следующий набор.",
+      color: open ? 0x2ecc71 : 0xe74c3c,
+      fields: [
+        { name: "🔫 Main / Combat — 3500+ ч.", value: "Хороший PvP: FC 40+ киллов **или** FFA 35+ киллов. Командная игра, коллы и быстрые решения." },
+        { name: "⚙️ Industrial — 2000+ ч.", value: "Сортировки ресурсов, конвейеры, дроны, поезда, автоматизация, электричество и промышленность базы." },
+        { name: "🛠️ Support Builder — 2000+ ч.", value: "Внешние ТК, фобы, рейд-базы, укрепления; быстрое строительство и ремонт основной базы." },
+        { name: "🚁 Transport Pilot — 1500+ ч.", value: "Уверенное пилотирование коптера и Apache, перевозка команды и лута, воздушная поддержка." },
+        { name: "🌿 Farmer — 2000+ ч.", value: "Выведение генов; электричество, вода, освещение и автоматизация фермы." },
+        { name: "⚡ Electric — 2000+ ч.", value: "Электрика и техническая инфраструктура базы." },
+        { name: "🎮 Пример ссылки на Steam-профиль", value: "https://steamcommunity.com/profiles/76561199403575804/\nУкажите **свой**, а не этот пример. PvP и профильные навыки оценивает рекрутёр." }
+      ]
     }],
     components: [{ type: 1, components: [{ type: 2, style: open ? 3 : 2, label: open ? "Подать заявку" : "Набор закрыт", emoji: { name: open ? "📝" : "🔒" }, custom_id: CustomId.Open, disabled: !open }] }]
   };
@@ -48,7 +57,23 @@ export function roleSelector(): unknown[] {
   }];
 }
 
-export function applicationModal(role: string): unknown {
+export function criteriaRoleSelector(action: "set" | "remove" = "set"): unknown[] {
+  return [{ type: 1, components: [{
+    type: 3,
+    custom_id: `ticket:criteria-role:${action}`,
+    placeholder: action === "set" ? "Для какой роли добавить критерий?" : "У какой роли убрать критерий?",
+    min_values: 1,
+    max_values: 1,
+    options: Object.entries(ROLE_REQUIREMENTS).map(([value, role]) => ({
+      label: role.label,
+      value,
+      description: `Дополнительный обязательный вопрос для ${role.label}`,
+      emoji: { name: role.emoji }
+    }))
+  }] }];
+}
+
+export function applicationModal(role: string, additionalQuestion?: string): unknown {
   return {
     title: "Заявка в .int",
     custom_id: `${CustomId.FormPrefix}${role}`,
@@ -56,8 +81,87 @@ export function applicationModal(role: string): unknown {
       { type: 1, components: [{ type: 4, custom_id: "age", label: "Возраст", style: 1, placeholder: "Например: 18", required: true, min_length: 2, max_length: 2 }] },
       { type: 1, components: [{ type: 4, custom_id: "daily_online", label: "Средний онлайн в сутки", style: 1, placeholder: "Например: 6", required: true, max_length: 2 }] },
       { type: 1, components: [{ type: 4, custom_id: "real_name", label: "Ваше имя", style: 1, placeholder: "Например: Богдан", required: true, min_length: 2, max_length: 32 }] },
-      { type: 1, components: [{ type: 4, custom_id: "comment", label: "Комментарий для рекрутёра", style: 2, placeholder: "Расскажите о себе или укажите важные детали", required: false, max_length: 1000 }] }
+      { type: 1, components: [{ type: 4, custom_id: "comment", label: "Комментарий для рекрутёра", style: 2, placeholder: "Расскажите о себе или укажите важные детали", required: false, max_length: 1000 }] },
+      ...(additionalQuestion ? [{ type: 1, components: [{ type: 4, custom_id: "additional_answer", label: additionalQuestion, style: 2, required: true, max_length: 500 }] }] : [])
     ]
+  };
+}
+
+export function staffRecruitmentPanel(open: boolean): { embeds: DiscordEmbed[]; components: unknown[] } {
+  return {
+    embeds: [{
+      title: open ? "🛡️ Набор в Discord Staff .int" : "🔒 Набор в Discord Staff закрыт",
+      description: open
+        ? "Ищем спокойных и ответственных людей для работы с участниками и тикетами. Анкета состоит из **3 коротких шагов**."
+        : "Заявки в Discord Staff сейчас не принимаются.",
+      color: open ? 0x5865f2 : 0xe74c3c,
+      fields: [{
+        name: "Критерии Staff",
+        value: "• адекватность и грамотное общение\n• регулярная активность и участие в собраниях\n• знание правил Discord и клана\n• умение спокойно решать конфликты\n• честность, субординация и отсутствие поблажек друзьям"
+      }]
+    }],
+    components: [{ type: 1, components: [{
+      type: 2, style: open ? 1 : 2, label: open ? "Подать заявку на Staff" : "Набор Staff закрыт",
+      emoji: { name: open ? "🛡️" : "🔒" }, custom_id: "staff-application:open", disabled: !open
+    }] }]
+  };
+}
+
+const staffFields: Array<{ id: keyof Omit<StaffApplicationRecord, "applicantId" | "applicantUsername" | "ticketChannelId" | "cardMessageId" | "status" | "createdAt" | "decidedAt" | "staffId" | "rejectionReason">; label: string; placeholder: string; style?: number }> = [
+  { id: "realName", label: "1. Как тебя зовут?", placeholder: "Имя" },
+  { id: "age", label: "2. Сколько тебе лет?", placeholder: "Возраст" },
+  { id: "timezone", label: "3. Твой часовой пояс", placeholder: "Например: МСК (UTC+3)" },
+  { id: "dailyAvailability", label: "4. Сколько часов в день уделишь?", placeholder: "Например: 4–6 часов" },
+  { id: "contactHours", label: "5. Когда обычно находишься на связи?", placeholder: "Например: 17:00–01:00 МСК" },
+  { id: "meetings", label: "6. Готов регулярно быть на собраниях?", placeholder: "Да/нет и возможные ограничения", style: 2 },
+  { id: "adminExperience", label: "7. Опыт администрации", placeholder: "Где работал, должность, обязанности и почему ушёл", style: 2 },
+  { id: "conflictAndRules", label: "8. Конфликты и знание правил", placeholder: "Как решаешь конфликты и насколько знаешь правила", style: 2 },
+  { id: "situations", label: "9. Как поступишь при нарушении?", placeholder: "Участник оскорбляет; нарушил друг; Staff злоупотребляет", style: 2 },
+  { id: "motivation", label: "10. Мотивация и польза для .int", placeholder: "Почему Staff, чем полезен, сильные стороны и субординация", style: 2 }
+];
+
+export function staffApplicationModal(step: 1 | 2 | 3, draftId = "new"): unknown {
+  const fields = staffFields.slice((step - 1) * 4, step * 4);
+  return {
+    title: `Заявка на Staff — ${step}/3`,
+    custom_id: `staff-application:form:${step}:${draftId}`,
+    components: fields.map(field => ({ type: 1, components: [{
+      type: 4, custom_id: field.id, label: field.label, style: field.style ?? 1,
+      placeholder: field.placeholder, required: true, min_length: 1, max_length: field.style === 2 ? 1000 : 200
+    }] }))
+  };
+}
+
+export function staffApplicationNextButton(step: 2 | 3, draftId: string): unknown[] {
+  return [{ type: 1, components: [{ type: 2, style: 1, label: `Продолжить — шаг ${step}/3`, custom_id: `staff-application:step:${step}:${draftId}` }] }];
+}
+
+export function staffApplicationButtons(disabled = false): unknown[] {
+  return [{ type: 1, components: [
+    { type: 2, style: 3, label: "Принять в Staff", custom_id: "staff-review:accept", disabled },
+    { type: 2, style: 4, label: "Отклонить", custom_id: "staff-review:reject", disabled },
+    { type: 2, style: 2, label: "Закрыть", custom_id: "staff-review:close" }
+  ] }];
+}
+
+export function staffApplicationEmbed(app: StaffApplicationRecord): DiscordEmbed {
+  const decision = app.status === "PENDING" ? "🟡 Ожидает решения"
+    : app.status === "ACCEPTED" ? `✅ Принят · <@${app.staffId}>`
+    : `❌ Отклонён · <@${app.staffId}>\nПричина: ${app.rejectionReason ?? "не указана"}`;
+  return {
+    title: "🛡️ Заявка на Discord Staff",
+    color: app.status === "PENDING" ? 0x5865f2 : app.status === "ACCEPTED" ? 0x2ecc71 : 0xe74c3c,
+    fields: [
+      { name: "Кандидат", value: `<@${app.applicantId}> (\`${app.applicantId}\`)` },
+      { name: "👤 Личная информация", value: `**Имя:** ${app.realName}\n**Возраст:** ${app.age}\n**Часовой пояс:** ${app.timezone}` },
+      { name: "⏰ Активность", value: `**В день:** ${app.dailyAvailability}\n**На связи:** ${app.contactHours}\n**Собрания:** ${app.meetings}` },
+      { name: "🛡️ Опыт и навыки", value: `**Опыт:** ${app.adminExperience}\n**Конфликты и правила:** ${app.conflictAndRules}`.slice(0, 1024) },
+      { name: "💬 Ситуационные вопросы", value: app.situations.slice(0, 1024) },
+      { name: "⭐ Мотивация", value: app.motivation.slice(0, 1024) },
+      { name: "Критерии Discord Staff", value: "Адекватность · активность · знание правил · решение конфликтов · честность · субординация" },
+      { name: "Статус", value: decision }
+    ],
+    timestamp: app.createdAt
   };
 }
 
@@ -79,7 +183,7 @@ export function steamAccountsModal(draftId: string): unknown {
       custom_id: `steam_${number}`,
       label: number === 1 ? "Основной Steam-аккаунт" : `Дополнительный Steam-аккаунт ${number}`,
       style: 1,
-      placeholder: "SteamID64 или ссылка на профиль",
+      placeholder: number === 1 ? "Пример: https://steamcommunity.com/profiles/76561199403575804/" : "SteamID64 или ссылка на профиль",
       required,
       max_length: 200
     }]
@@ -150,7 +254,7 @@ export function adminPanel(): { embeds: DiscordEmbed[]; components: unknown[] } 
       { type: 2, style: 1, label: "Steam-привязка", custom_id: "admin:member-info", emoji: { name: "🔗" } },
       { type: 2, style: 3, label: "Предупреждение о вайпе", custom_id: "admin:wipe", emoji: { name: "📢" } },
       { type: 2, style: 2, label: "Явка на вайп", custom_id: "admin:wipe-attendance", emoji: { name: "✅" } }
-      , { type: 2, style: 4, label: "Открыть / закрыть набор", custom_id: "admin:recruitment-toggle", emoji: { name: "🔒" } }
+      , { type: 2, style: 1, label: "Заявки", custom_id: "admin:recruitment-toggle", emoji: { name: "📋" } }
     ] }, { type: 1, components: [
       { type: 2, style: 4, label: "Добавить в ЧС навсегда", custom_id: "admin:blacklist", emoji: { name: "⛔" } },
       { type: 2, style: 1, label: "Привязать Rust-сервер", custom_id: "admin:server-bind", emoji: { name: "🎮" } },
@@ -220,7 +324,17 @@ export function wipeAbsenceModal(wipeId: string): unknown {
 }
 
 export function wipeAttendanceUserSelector(wipeId: string): unknown[] {
-  return [{ type: 1, components: [{ type: 5, custom_id: `wipe:attendance-user:${wipeId}`, placeholder: "Выберите участника", min_values: 1, max_values: 1 }] }];
+  return [
+    { type: 1, components: [{ type: 5, custom_id: `wipe:attendance-batch:${wipeId}`, placeholder: "Выберите всех, кто зашёл (до 25)", min_values: 1, max_values: 25 }] },
+    { type: 1, components: [{ type: 2, style: 3, label: "Все зашли", custom_id: `wipe:attendance-all:${wipeId}`, emoji: { name: "✅" } }] }
+  ];
+}
+
+export function wipeAttendanceConfirmButtons(wipeId: string): unknown[] {
+  return [{ type: 1, components: [
+    { type: 2, style: 4, label: "Подтвердить и выдать варны", custom_id: `wipe:attendance-confirm:${wipeId}` },
+    { type: 2, style: 2, label: "Отмена", custom_id: `wipe:attendance-cancel:${wipeId}` }
+  ] }];
 }
 
 export function wipeAttendanceDecisionButtons(wipeId: string, userId: string): unknown[] {
@@ -268,6 +382,7 @@ export function applicationEmbed(app: ApplicationRecord): DiscordEmbed {
         : app.inventoryStatus === "PRIVATE" ? "🔒 Инвентарь скрыт" : "⚠️ Стоимость временно недоступна" },
       { name: "Средний онлайн", value: `${app.dailyOnline} ч./сутки`, inline: true },
       ...(app.applicantComment ? [{ name: "Комментарий кандидата", value: app.applicantComment }] : []),
+      ...(app.additionalQuestion && app.additionalAnswer ? [{ name: app.additionalQuestion, value: app.additionalAnswer }] : []),
       ...(app.manualException ? [{ name: "Ручное исключение", value: `✅ Разрешил: <@${app.exceptionStaffId}>\n**Комментарий рекрутёра:** ${app.recruiterComment}` }] : []),
       { name: "Автоматическая проверка", value: app.steamDataHidden
         ? "✅ Возраст соответствует требованиям\n✅ Онлайн соответствует требованиям\n⚠️ Список игр и часы Steam скрыты — решение принимает Staff вручную"

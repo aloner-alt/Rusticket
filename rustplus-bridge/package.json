@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/index.cjs",
-    "check": "node --check src/index.cjs && node --check src/tracker.cjs",
+    "check": "node --check src/index.cjs && node --check src/tracker.cjs && node --check src/team-chat.cjs && node --check src/day-night.cjs",
     "test": "node --test test/*.test.cjs"
   },
   "engines": {

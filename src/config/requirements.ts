@@ -1,7 +1,7 @@
 import type { RoleKey } from "../types";
 
 export const MINIMUM_AGE = 15;
-export const MINIMUM_DAILY_ONLINE = 4;
+export const MINIMUM_DAILY_ONLINE = 6;
 export const RUST_APP_ID = 252490;
 export const COOLDOWN_SECONDS = 30;
 
@@ -22,7 +22,7 @@ export const ROLE_REQUIREMENTS = {
     emoji: "🔧",
     label: "Builder",
     description: "Строительство и развитие базы",
-    minimumRustHours: 3000
+    minimumRustHours: 2000
   },
   industrial: {
     emoji: "🏭",

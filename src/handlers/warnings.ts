@@ -1,6 +1,6 @@
 import {
   adminPanel, blacklistModal, userSelector, warnModal, warningChannelButtons, wipeAnnouncementButtons,
-  wipeAbsenceModal, wipeAttendanceDecisionButtons, wipeAttendanceUserSelector, wipeModal, wipeSquareModal
+  wipeAbsenceModal, wipeAttendanceConfirmButtons, wipeAttendanceUserSelector, wipeModal, wipeSquareModal
 } from "../discord/components";
 import { InteractionResponseType, ephemeral, jsonResponse } from "../discord/interactions";
 import { isAdministrator, isPrivateModerator } from "../discord/permissions";
@@ -15,6 +15,9 @@ const FIVE_HOURS = 18_000_000;
 const roleFor = (env: Env, level: 1 | 2) => level === 1 ? env.PRIVATE_WARN_1_ROLE_ID : env.PRIVATE_WARN_2_ROLE_ID;
 const wipeKey = (id: string) => `wipe:${id}`;
 const attendanceKey = (wipeId: string, userId: string) => `wipe-attendance:${wipeId}:${userId}`;
+const attendanceDraftKey = (wipeId: string, moderatorId: string) => `wipe-attendance-draft:${wipeId}:${moderatorId}`;
+
+interface WipeAttendanceDraft { wipeId: string; moderatorId: string; presentUserIds: string[]; createdAt: number }
 
 function validHttpUrl(value: string | undefined): string | undefined {
   if (!value) return undefined;
@@ -376,7 +379,7 @@ export async function openWipeAttendance(i: DiscordInteraction, env: Env): Promi
     { type: 2, style: 2, label: "Далее", custom_id: `wipe:roster:${wipe.id}:${page + 1}:next`, disabled: page === pages.length - 1 }
   ] }];
   const reviewText = canReview
-    ? "\nВыберите участника: «Не зашёл» выдаст варн за отсутствие ответа или нарушенное подтверждение. Отказ с причиной — без автоматического варна."
+    ? "\nВыберите сразу всех, кто реально зашёл. Бот покажет итоговый список и попросит подтверждение; до подтверждения варны не выдаются. Отказ с причиной считается уважительным."
     : `\n\nПроверка фактической явки откроется <t:${Math.floor((wipe.wipeAt + FIVE_HOURS) / 1000)}:R>. До этого здесь отображается план.`;
   return jsonResponse({ type: InteractionResponseType.ChannelMessageWithSource, data: {
     content: `📋 **${canReview ? "Проверка явки" : "Запланированный вайп"}: ${wipe.project}**\nВайп: <t:${Math.floor(wipe.wipeAt / 1000)}:F> (<t:${Math.floor(wipe.wipeAt / 1000)}:R>)\n${pages[page]}\nСтраница ${page + 1}/${pages.length}${reviewText}`,
@@ -384,14 +387,74 @@ export async function openWipeAttendance(i: DiscordInteraction, env: Env): Promi
   } });
 }
 
-export function selectWipeAttendanceUser(i: DiscordInteraction, env: Env): Response {
+function clippedMentions(ids: string[]): string {
+  if (!ids.length) return "—";
+  const visible = ids.slice(0, 35).map(id => `<@${id}>`).join(", ");
+  return ids.length > 35 ? `${visible}\n…и ещё ${ids.length - 35}` : visible;
+}
+
+async function buildAttendancePreview(i: DiscordInteraction, env: Env, wipeId: string, selected: string[]): Promise<Response> {
   if (!isPrivateModerator(i, env)) return ephemeral("❌ Недостаточно прав.");
-  const wipeId = (i.data?.custom_id ?? "").slice("wipe:attendance-user:".length);
-  const userId = i.data?.values?.[0];
-  if (!/^[0-9a-f-]{36}$/i.test(wipeId) || !userId) return ephemeral("❌ Пользователь или вайп не выбран.");
+  const moderator = interactionUser(i);
+  const wipe = await env.APPLICATIONS.get<WipeRecord>(wipeKey(wipeId), "json");
+  if (!moderator || !wipe || Date.now() < wipe.wipeAt + FIVE_HOURS) return ephemeral("⚠️ Проверка явки ещё недоступна.");
+  const roster = await currentWipeRoster(env);
+  const rosterIds = roster.map(member => member.user.id);
+  const presentUserIds = [...new Set(selected)].filter(id => rosterIds.includes(id));
+  const records = await getWipeAttendance(env, wipeId);
+  const excused = rosterIds.filter(id => !presentUserIds.includes(id) && records.find(r => r.userId === id)?.rsvp === "no");
+  const absent = rosterIds.filter(id => !presentUserIds.includes(id) && !excused.includes(id));
+  const draft: WipeAttendanceDraft = { wipeId, moderatorId: moderator.id, presentUserIds, createdAt: Date.now() };
+  await env.APPLICATIONS.put(attendanceDraftKey(wipeId, moderator.id), JSON.stringify(draft), { expirationTtl: 1800 });
   return jsonResponse({ type: InteractionResponseType.ChannelMessageWithSource, data: {
-    content: `Отметьте явку <@${userId}>:`, components: wipeAttendanceDecisionButtons(wipeId, userId), flags: 64, allowed_mentions: { parse: [] }
+    content: `📋 **Проверьте итог перед сохранением**\n\n✅ **Зашли (${presentUserIds.length})**\n${clippedMentions(presentUserIds)}\n\n🟦 **Не смогут, указали причину (${excused.length}) — без варна**\n${clippedMentions(excused)}\n\n⚠️ **Не зашли (${absent.length}) — получат варн**\n${clippedMentions(absent)}\n\nНикакие варны ещё не выданы.`,
+    components: wipeAttendanceConfirmButtons(wipeId), flags: 64, allowed_mentions: { parse: [] }
   } });
+}
+
+export async function selectWipeAttendanceUser(i: DiscordInteraction, env: Env): Promise<Response> {
+  const wipeId = (i.data?.custom_id ?? "").slice("wipe:attendance-batch:".length);
+  if (!/^[0-9a-f-]{36}$/i.test(wipeId)) return ephemeral("❌ Некорректный вайп.");
+  return buildAttendancePreview(i, env, wipeId, i.data?.values ?? []);
+}
+
+export async function previewAllWipeAttendance(i: DiscordInteraction, env: Env): Promise<Response> {
+  const wipeId = (i.data?.custom_id ?? "").slice("wipe:attendance-all:".length);
+  const roster = await currentWipeRoster(env);
+  return buildAttendancePreview(i, env, wipeId, roster.map(member => member.user.id));
+}
+
+export async function confirmWipeAttendance(i: DiscordInteraction, env: Env): Promise<Response> {
+  if (!isPrivateModerator(i, env)) return ephemeral("❌ Недостаточно прав.");
+  const match = /^wipe:attendance-(confirm|cancel):([0-9a-f-]{36})$/i.exec(i.data?.custom_id ?? "");
+  const moderator = interactionUser(i);
+  if (!match || !moderator) return ephemeral("❌ Некорректная проверка.");
+  const wipeId = match[2];
+  if (!wipeId) return ephemeral("❌ Некорректный вайп.");
+  const key = attendanceDraftKey(wipeId, moderator.id);
+  if (match[1] === "cancel") { await env.APPLICATIONS.delete(key); return ephemeral("↩️ Проверка отменена. Варны не выдавались."); }
+  const draft = await env.APPLICATIONS.get<WipeAttendanceDraft>(key, "json");
+  const wipe = await env.APPLICATIONS.get<WipeRecord>(wipeKey(wipeId), "json");
+  if (!draft || !wipe) return ephemeral("⚠️ Черновик устарел. Откройте явку заново.");
+  const roster = await currentWipeRoster(env);
+  const records = await getWipeAttendance(env, wipe.id);
+  let warnings = 0; let skipped = 0;
+  for (const member of roster) {
+    const userId = member.user.id;
+    const existing = records.find(record => record.userId === userId);
+    const present = draft.presentUserIds.includes(userId);
+    let warningIssuedAt = existing?.warningIssuedAt;
+    if (!present && !existing?.rsvp && wipe.expectedUserIds && !wipe.expectedUserIds.includes(userId)) { skipped++; continue; }
+    const reason = present ? null : absenceReason(existing ?? null, wipe.project);
+    if (reason) {
+      const warning = await issueAutomaticWipeWarning(env, userId, moderator.id, reason);
+      if (warning) { warningIssuedAt = Date.now(); warnings++; } else skipped++;
+    }
+    const record: WipeAttendanceRecord = { ...(existing ?? {}), wipeId: wipe.id, userId, present, moderatorId: moderator.id, updatedAt: Date.now(), ...(warningIssuedAt ? { warningIssuedAt } : {}) };
+    await env.APPLICATIONS.put(attendanceKey(wipe.id, userId), JSON.stringify(record), { expirationTtl: 2_592_000 });
+  }
+  await env.APPLICATIONS.delete(key);
+  return ephemeral(`✅ Явка сохранена. Зашли: **${draft.presentUserIds.length}**. Выдано варнов: **${warnings}**.${skipped ? ` Пропущено: **${skipped}** (не входили в состав или уже имеют оба варна).` : ""}`);
 }
 
 export async function markWipeAttendance(i: DiscordInteraction, env: Env): Promise<Response> {

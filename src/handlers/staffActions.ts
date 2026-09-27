@@ -26,19 +26,16 @@ async function deleteInterviewVoice(env: Env, app: ApplicationRecord): Promise<v
   delete app.voiceChannelId;
 }
 
-function privateOnboardingMessage(inviteUrl: string): string {
+export function privateOnboardingMessage(inviteUrl: string): string {
   return [
     "✅ **Заявка принята — добро пожаловать в .int!**",
     "",
-    "**1.** Зайдите на приватный сервер:",
+    "Зайдите на приватный сервер:",
     inviteUrl,
     "",
-    "**2.** Уже на **.int Private** напишите команду:",
-    "```",
-    "/claim",
-    "```",
-    "Бот автоматически выдаст вам Rust-роль, роль выбранного направления и установит ник.",
-    "Команду нужно выполнить с того же Discord-аккаунта, с которого подавалась заявка."
+    "В канале **#получить-роли** нажмите кнопку **«Получить роли»**.",
+    "Бот выдаст Rust-роль, роль выбранного направления и установит ник.",
+    "Зайдите с того же Discord-аккаунта, с которого подавалась заявка."
   ].join("\n");
 }
 
@@ -188,7 +185,7 @@ export async function acceptApplication(interaction: DiscordInteraction, env: En
   if (!staff) return ephemeral(messages.genericError);
 
   const onboardingDelivered = await acceptApplicationRecord(env, app, staff.id);
-  return ephemeral(onboardingDelivered ? "✅ Заявка принята, ссылка и команда /claim отправлены." : "✅ Заявка принята. Discord временно не принял сообщение; бот повторит отправку автоматически.");
+  return ephemeral(onboardingDelivered ? "✅ Заявка принята. Ссылка на приват и инструкция по получению ролей отправлены." : "✅ Заявка принята. Discord временно не принял сообщение; бот повторит отправку автоматически.");
 }
 
 export function openRejectModal(interaction: DiscordInteraction, env: Env): Response {

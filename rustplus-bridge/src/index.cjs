@@ -3,6 +3,8 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const RustPlus = require("@rustwirebot/rustplus.js");
 const { updateState, toSnapshot } = require("./tracker.cjs");
+const { createTeamChatHandler, gameClock } = require("./team-chat.cjs");
+const { DayNightClock, formatRemaining } = require("./day-night.cjs");
 
 const required = ["RUSTPLUS_SERVER_ID", "RUSTPLUS_IP", "RUSTPLUS_PORT", "RUSTPLUS_PLAYER_ID", "RUSTPLUS_PLAYER_TOKEN", "WORKER_URL", "RUSTPLUS_BRIDGE_TOKEN"];
 for (const key of required) if (!process.env[key]) throw new Error(`Missing environment variable: ${key}`);
@@ -15,16 +17,22 @@ const configuredWipeStartedAt = process.env.RUSTPLUS_WIPE_STARTED_AT ? Date.pars
 if (process.env.RUSTPLUS_WIPE_STARTED_AT && !Number.isFinite(configuredWipeStartedAt)) throw new Error("RUSTPLUS_WIPE_STARTED_AT must be an ISO date");
 const stateDir = path.join(__dirname, "..", ".data");
 const statePath = path.join(stateDir, "player-stats.json");
+const reminderPath = path.join(stateDir, "day-night-reminders.json");
 let state = { version: 1, players: {} };
 let timer;
+let reminderTimer;
 let reconnectTimer;
 let polling = false;
+let reminding = false;
 let connected = false;
 let shuttingDown = false;
+let selfOnline = false;
+let clanAvailable = false;
 let monumentsLoaded = false;
 let oilRigMonuments = [];
 let mapWipeTime;
 let selfWasOffline = false;
+let lastMarkerTypes = "";
 
 async function loadState() {
   try { state = JSON.parse(await fs.readFile(statePath, "utf8")); }
@@ -121,6 +129,16 @@ async function getServerStatus(rustplus) {
   const [info, time, markers] = await Promise.all([
     request(rustplus, "getInfo", "info"), request(rustplus, "getTime", "time"), request(rustplus, "getMapMarkers", "mapMarkers")
   ]);
+  const markerCounts = {};
+  for (const marker of markers.markers || []) {
+    const type = String(marker.type);
+    markerCounts[type] = (markerCounts[type] || 0) + 1;
+  }
+  const markerTypes = JSON.stringify(Object.fromEntries(Object.entries(markerCounts).sort(([a], [b]) => Number(a) - Number(b))));
+  if (markerTypes !== lastMarkerTypes) {
+    console.log(`Rust+ map marker types: ${markerTypes}`);
+    lastMarkerTypes = markerTypes;
+  }
   const currentWipeTime = number(info.wipeTime);
   if (!monumentsLoaded || mapWipeTime !== currentWipeTime) {
     mapWipeTime = currentWipeTime;
@@ -144,6 +162,63 @@ async function sendSnapshot(snapshot) {
   if (!response.ok) throw new Error(`Worker rejected snapshot: ${response.status} ${await response.text()}`);
 }
 
+async function loadReminderState() {
+  try { return JSON.parse(await fs.readFile(reminderPath, "utf8")); }
+  catch (error) { if (error.code === "ENOENT") return {}; throw error; }
+}
+
+async function saveReminderState(clock) {
+  await fs.mkdir(stateDir, { recursive: true });
+  const temporary = `${reminderPath}.tmp`;
+  await fs.writeFile(temporary, JSON.stringify(clock.snapshot()), "utf8");
+  await fs.rename(temporary, reminderPath);
+}
+
+function rawRequest(rustplus, body, responseKey) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Rust+ request timed out")), 15_000);
+    try {
+      rustplus.sendRequest(body, message => {
+        clearTimeout(timeout);
+        const error = message?.response?.error?.error;
+        if (error) reject(new Error(error));
+        else if (responseKey && !message?.response?.[responseKey]) reject(new Error(`Rust+ returned no ${responseKey}`));
+        else resolve(responseKey ? message.response[responseKey] : message?.response);
+        return true;
+      });
+    } catch (error) { clearTimeout(timeout); reject(error); }
+  });
+}
+
+function sendChatMessage(rustplus, channel, text) {
+  const kind = channel === "clan" ? "sendClanMessage" : "sendTeamMessage";
+  return rawRequest(rustplus, { [kind]: { message: text } });
+}
+
+async function checkReminders(rustplus, clock) {
+  if (reminding || !connected || !selfOnline) return;
+  reminding = true;
+  try {
+    const time = await request(rustplus, "getTime", "time");
+    const forecast = clock.observe(time, Date.now());
+    await saveReminderState(clock);
+    if (!forecast) return;
+    const name = forecast.kind === "night" ? "ночи" : "утра";
+    const message = `[.int] Напоминание: до ${name} ${formatRemaining(forecast.remainingMinutes)} (сейчас ${gameClock(time.time)}).`;
+    for (const channel of ["team", "clan"]) {
+      if (channel === "clan" && !clanAvailable) continue;
+      if (!clock.shouldRemind(forecast, channel)) continue;
+      try {
+        await sendChatMessage(rustplus, channel, message);
+        clock.markReminded(forecast, channel);
+        await saveReminderState(clock);
+        console.log(`Sent ${forecast.kind} reminder to Rust ${channel} chat`);
+      } catch (error) { console.warn(`Could not send ${forecast.kind} reminder to ${channel} chat: ${error.message}`); }
+    }
+  } catch (error) { console.warn(`Rust+ day/night reminder check failed: ${error.message}`); }
+  finally { reminding = false; }
+}
+
 async function poll(rustplus) {
   if (polling || !connected) return;
   polling = true;
@@ -153,12 +228,14 @@ async function poll(rustplus) {
     if (process.env.RUSTPLUS_ONLY_WHEN_SELF_ONLINE === '1') {
       const self = members.find(member => member.steamId64 === process.env.RUSTPLUS_PLAYER_ID);
       if (!self?.isOnline) {
+        selfOnline = false;
         if (!selfWasOffline) console.log('Paired Steam account is offline on this server; waiting before publishing.');
         selfWasOffline = true;
         return;
       }
       selfWasOffline = false;
     }
+    selfOnline = true;
     const { wipeStartedAt, ...publicServer } = server;
     state = updateState(state, members, now, { pollMs, timeZone, wipeStartedAt });
     await saveState();
@@ -171,16 +248,37 @@ async function poll(rustplus) {
 
 async function main() {
   await loadState();
+  const dayNightClock = new DayNightClock(await loadReminderState());
   const rustplus = new RustPlus(process.env.RUSTPLUS_IP, process.env.RUSTPLUS_PORT, process.env.RUSTPLUS_PLAYER_ID, process.env.RUSTPLUS_PLAYER_TOKEN);
+  const handleChat = createTeamChatHandler({
+    request: (method, key) => request(rustplus, method, key),
+    send: (channel, text) => sendChatMessage(rustplus, channel, text),
+    clock: dayNightClock,
+    timeZone,
+    onError: message => console.error(message)
+  });
+  rustplus.on("message", packet => { void handleChat(packet); });
   rustplus.on("connected", () => {
     connected = true;
     console.log("Connected to Rust+");
+    void rawRequest(rustplus, { getClanInfo: {} }, "clanInfo")
+      .then(info => {
+        clanAvailable = Boolean(info?.clanInfo?.clanId);
+        console.log(clanAvailable ? "Rust+ clan chat available" : "Rust+ clan chat unavailable for this account/server");
+      })
+      .catch(error => { clanAvailable = false; console.warn(`Rust+ clan chat unavailable: ${error.message}`); });
     void poll(rustplus);
     clearInterval(timer);
     timer = setInterval(() => void poll(rustplus), pollMs);
+    clearInterval(reminderTimer);
+    reminderTimer = setInterval(() => void checkReminders(rustplus, dayNightClock), 30_000);
   });
   rustplus.on("disconnected", () => {
     connected = false;
+    selfOnline = false;
+    clanAvailable = false;
+    clearInterval(timer);
+    clearInterval(reminderTimer);
     console.warn("Disconnected from Rust+; reconnecting in 15 seconds");
     void sendSnapshot(toSnapshot(state, process.env.RUSTPLUS_SERVER_ID, process.env.RUSTPLUS_SERVER_NAME || "Rust server", false)).catch(error => console.error("Disconnected snapshot failed:", error.message));
     clearTimeout(reconnectTimer);
@@ -188,7 +286,7 @@ async function main() {
   });
   rustplus.on("error", error => console.error("Rust+ error:", error?.message || error));
   rustplus.connect();
-  const shutdown = async () => { shuttingDown = true; clearInterval(timer); clearTimeout(reconnectTimer); await saveState(); rustplus.disconnect?.(); process.exit(0); };
+  const shutdown = async () => { shuttingDown = true; clearInterval(timer); clearInterval(reminderTimer); clearTimeout(reconnectTimer); await Promise.all([saveState(), saveReminderState(dayNightClock)]); rustplus.disconnect?.(); process.exit(0); };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 }

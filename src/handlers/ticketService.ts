@@ -28,6 +28,8 @@ export interface TicketInput {
   inventoryTotalUnique?: number;
   inventoryLimited?: boolean;
   applicantComment?: string;
+  additionalQuestion?: string;
+  additionalAnswer?: string;
   manualException?: boolean;
   recruiterComment?: string;
   exceptionStaffId?: string;
@@ -55,6 +57,7 @@ export async function createApplicationTicket(env: Env, input: TicketInput): Pro
         { id: env.DISCORD_GUILD_ID, type: 0, allow: "0", deny: VIEW_CHANNEL.toString() },
         { id: input.applicantId, type: 1, allow: applicantAllow.toString(), deny: "0" },
         { id: getStaffRoleId(env.STAFF_ROLE_ID), type: 0, allow: staffAllow.toString(), deny: "0" },
+        ...(env.TICKET_REVIEW_ROLE_ID ? [{ id: env.TICKET_REVIEW_ROLE_ID, type: 0, allow: staffAllow.toString(), deny: "0" }] : []),
         { id: env.DISCORD_APPLICATION_ID, type: 1, allow: botAllow.toString(), deny: "0" }
       ]
     })
