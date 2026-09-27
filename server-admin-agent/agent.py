@@ -7,7 +7,11 @@ SERVICES = {"rusticket": os.getenv("RUSTICKET_CONTAINER", "rusticket"), "rustplu
 
 def request(path, method="GET", payload=None):
     data = json.dumps(payload).encode() if payload is not None else None
-    req = urllib.request.Request(WORKER_URL + path, data=data, method=method, headers={"Authorization": "Bearer " + TOKEN, "Content-Type": "application/json"})
+    req = urllib.request.Request(WORKER_URL + path, data=data, method=method, headers={
+        "Authorization": "Bearer " + TOKEN,
+        "Content-Type": "application/json",
+        "User-Agent": "RusticketServerAgent/1.0"
+    })
     with urllib.request.urlopen(req, timeout=20) as response:
         return json.loads(response.read() or b"{}")
 
