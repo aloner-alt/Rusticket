@@ -23,6 +23,7 @@ const containersMenu = keyboard(
   [{ text: "🎮 Rust+", callback_data: "service:rustplus" }],
   [{ text: "⬅️ Назад", callback_data: "menu:main" }]
 );
+const homeText = "🛡 <b>Управление сервером Aloner</b>\n\n☁️ Telegram-бот работает на Cloudflare и останется доступен, даже если сервер Aloner выключится или перестанет отвечать.\n\nВыберите раздел:";
 const serviceMenu = (service: string) => keyboard(
   [{ text: "📊 Статус", callback_data: `action:status:${service}` }, { text: "📜 Логи", callback_data: `action:logs:${service}` }],
   [{ text: "🔄 Перезапустить", callback_data: `action:restart:${service}` }],
@@ -71,13 +72,13 @@ async function handleTelegram(request: Request, env: Env): Promise<Response> {
   const ownerId = update.callback_query?.from.id ?? update.message?.from?.id;
   if (!authorized(ownerId, env)) return json({ ok: true });
   if (update.message) {
-    await show(env, update.message.chat.id, "🛡 <b>Управление сервером .int</b>\n\nВыберите раздел:");
+    await show(env, update.message.chat.id, homeText);
     return json({ ok: true });
   }
   const query = update.callback_query; const message = query?.message; const data = query?.data ?? "";
   if (!query || !message) return json({ ok: true });
   await telegram(env, "answerCallbackQuery", { callback_query_id: query.id });
-  if (data === "menu:main") await show(env, message.chat.id, "🛡 <b>Управление сервером .int</b>\n\nВыберите раздел:", mainMenu, message.message_id);
+  if (data === "menu:main") await show(env, message.chat.id, homeText, mainMenu, message.message_id);
   else if (data === "server:status") await show(env, message.chat.id, statusText(await statusPayload(env)), mainMenu, message.message_id);
   else if (data === "server:load") await show(env, message.chat.id, statusText(await statusPayload(env), true), mainMenu, message.message_id);
   else if (data === "containers:menu") await show(env, message.chat.id, "🐳 <b>Контейнеры</b>\n\nВыберите сервис:", containersMenu, message.message_id);
