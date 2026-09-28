@@ -16,12 +16,13 @@ export const CustomId = {
   , InviteVoice: "application:invite-voice"
 } as const;
 
-export function recruitmentPanel(open = true): { embeds: DiscordEmbed[]; components: unknown[] } {
+export function recruitmentPanel(open = true, telegramBotUrl?: string): { embeds: DiscordEmbed[]; components: unknown[] } {
+  const telegramUrl = telegramBotUrl && /^https:\/\/t\.me\/[A-Za-z0-9_]{5,32}$/.test(telegramBotUrl) ? telegramBotUrl : undefined;
   return {
     embeds: [{
       title: open ? "🔥 Клан .int открывает набор" : "🔒 Набор в клан .int закрыт",
       description: open
-        ? "Ищем активных игроков на долгую игру. Выберите **одно** направление и заполните анкету кнопкой ниже.\n\n**Для всех:** возраст 15+, онлайн от 6 часов в день (ориентир — 6–8), адекватность, дисциплина, выполнение коллов и игра на результат."
+        ? `Ищем активных игроков на долгую игру. Выберите **одно** направление и заполните анкету кнопкой ниже.\n\n${telegramUrl ? "📱 **Подать заявку также можно через Telegram** — используйте отдельную кнопку ниже.\n\n" : ""}**Для всех:** возраст 15+, онлайн от 6 часов в день (ориентир — 6–8), адекватность, дисциплина, выполнение коллов и игра на результат.`
         : "Сейчас заявки не принимаются. Ниже — требования на следующий набор.",
       color: open ? 0x2ecc71 : 0xe74c3c,
       fields: [
@@ -34,7 +35,10 @@ export function recruitmentPanel(open = true): { embeds: DiscordEmbed[]; compone
         { name: "🎮 Пример ссылки на Steam-профиль", value: "https://steamcommunity.com/profiles/76561199403575804/\nУкажите **свой**, а не этот пример. PvP и профильные навыки оценивает рекрутёр." }
       ]
     }],
-    components: [{ type: 1, components: [{ type: 2, style: open ? 3 : 2, label: open ? "Подать заявку" : "Набор закрыт", emoji: { name: open ? "📝" : "🔒" }, custom_id: CustomId.Open, disabled: !open }] }]
+    components: [{ type: 1, components: [
+      { type: 2, style: open ? 3 : 2, label: open ? "Подать заявку в Discord" : "Набор закрыт", emoji: { name: open ? "📝" : "🔒" }, custom_id: CustomId.Open, disabled: !open },
+      ...(telegramUrl ? [{ type: 2, style: 5, label: "Подать через Telegram", emoji: { name: "📱" }, url: telegramUrl, disabled: !open }] : [])
+    ] }]
   };
 }
 

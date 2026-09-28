@@ -12,7 +12,7 @@ export async function setupRecruitment(interaction: DiscordInteraction, env: Env
   const state = await getRecruitmentState(env);
   const message = await discordRest<{ id: string }>(env, `/channels/${env.TICKETS_CHANNEL_ID}/messages`, {
     method: "POST",
-    body: JSON.stringify(recruitmentPanel(state.open))
+    body: JSON.stringify(recruitmentPanel(state.open, env.TELEGRAM_TICKET_BOT_URL))
   });
   await saveRecruitmentState(env, { ...state, panelMessageId: message.id });
   return jsonResponse({

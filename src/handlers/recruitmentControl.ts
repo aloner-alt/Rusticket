@@ -9,7 +9,7 @@ import { interactionUser } from "./helpers";
 
 export const RECRUITMENT_CLOSED_MESSAGE = "🔒 Набор в клан сейчас закрыт. Дождитесь объявления об открытии набора.";
 
-const CRITERIA_PANEL_SYNC_KEY = "recruitment:criteria-panel:2026-09-26";
+const CRITERIA_PANEL_SYNC_KEY = "recruitment:criteria-panel:2026-09-28-telegram";
 const STAFF_REOPEN_KEY = "recruitment:staff-reopened:2026-09-26-v1";
 
 export async function ensureStaffRecruitmentPanel(env: Env): Promise<void> {
@@ -61,7 +61,7 @@ export async function refreshRecruitmentCriteriaPanel(env: Env): Promise<void> {
   const panelMessageId = state.panelMessageId ?? await findRecruitmentPanelMessageId(env);
   if (!panelMessageId) return;
   await discordRest(env, `/channels/${env.TICKETS_CHANNEL_ID}/messages/${panelMessageId}`, {
-    method: "PATCH", body: JSON.stringify(recruitmentPanel(state.open))
+    method: "PATCH", body: JSON.stringify(recruitmentPanel(state.open, env.TELEGRAM_TICKET_BOT_URL))
   });
   if (state.panelMessageId !== panelMessageId) await saveRecruitmentState(env, { ...state, panelMessageId });
   await env.APPLICATIONS.put(CRITERIA_PANEL_SYNC_KEY, "done");
@@ -75,7 +75,7 @@ export async function toggleRecruitment(interaction: DiscordInteraction, env: En
   await saveRecruitmentState(env, next);
   if (next.panelMessageId) {
     await discordRest(env, `/channels/${env.TICKETS_CHANNEL_ID}/messages/${next.panelMessageId}`, {
-      method: "PATCH", body: JSON.stringify(recruitmentPanel(next.open))
+      method: "PATCH", body: JSON.stringify(recruitmentPanel(next.open, env.TELEGRAM_TICKET_BOT_URL))
     }).catch((error: unknown) => {
       console.error("Recruitment panel update failed", error instanceof Error ? error.message : "unknown error");
     });

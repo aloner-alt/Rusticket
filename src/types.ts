@@ -34,6 +34,7 @@ export interface Env {
   PLAYER_CHECK_CHANNEL_ID: string;
   RUST_STATS_CHANNEL_ID: string;
   RUSTPLUS_BRIDGE_TOKEN?: string;
+  TELEGRAM_TICKET_BOT_URL?: string;
   APPLICATIONS: KVNamespace;
 }
 
