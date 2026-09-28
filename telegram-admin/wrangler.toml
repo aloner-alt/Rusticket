@@ -5,8 +5,8 @@ compatibility_date = "2026-09-01"
 [vars]
 TELEGRAM_ADMIN_ID = "5723340037"
 
-[[kv_namespaces]]
-binding = "APPLICATIONS"
-id = "75156f0611ba485a82e63a6038208bd1"
-preview_id = "93780a616c3944dfa5293c121ccd1646"
+[[d1_databases]]
+binding = "ADMIN_DB"
+database_name = "rusticket-telegram-admin-state"
+database_id = "080f82b2-ed11-43e4-8333-2968d30bee5b"
 

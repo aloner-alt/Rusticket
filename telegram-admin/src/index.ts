@@ -1,5 +1,7 @@
+import { AdminStore } from './store';
 interface Env {
-  APPLICATIONS: KVNamespace;
+  ADMIN_DB: D1Database;
+  APPLICATIONS: AdminStore;
   TELEGRAM_BOT_TOKEN: string;
   TELEGRAM_ADMIN_ID: string;
   TELEGRAM_WEBHOOK_SECRET: string;
@@ -54,7 +56,7 @@ const pct = (value: unknown) => `${Number(value ?? 0).toFixed(1)}%`;
 function statusText(data: Record<string, any> | null, loadOnly = false): string {
   if (!data) return "⚠️ Агент сервера ещё не подключался.";
   const age = Math.floor((Date.now() - Number(data.updatedAt)) / 1000);
-  const freshness = age > 90 ? `⚠️ Данные устарели: ${age} сек.` : `🟢 Агент на связи · ${age} сек. назад`;
+  const freshness = age > 360 ? `⚠️ Данные устарели: ${age} сек.` : `🟢 Агент на связи · ${age} сек. назад`;
   const load = `CPU: <b>${pct(data.cpu)}</b>\nRAM: <b>${pct(data.memory?.percent)}</b> (${data.memory?.used ?? "?"} / ${data.memory?.total ?? "?"})\nДиск: <b>${pct(data.disk?.percent)}</b> (${data.disk?.used ?? "?"} / ${data.disk?.total ?? "?"})\nUptime: <b>${data.uptime ?? "?"}</b>`;
   if (loadOnly) return `📈 <b>Загрузка сервера</b>\n\n${load}\n\n${freshness}`;
   const services = Object.entries(data.services ?? {}).map(([name, item]: [string, any]) => `${item.running ? "🟢" : "🔴"} ${name}: <b>${item.status ?? "unknown"}</b>`).join("\n") || "Контейнеры не найдены";
@@ -101,12 +103,13 @@ async function handleTelegram(request: Request, env: Env): Promise<Response> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    env = { ...env, APPLICATIONS: new AdminStore(env.ADMIN_DB) };
     const url = new URL(request.url);
     if (request.method === "POST" && url.pathname === "/telegram") return handleTelegram(request, env);
     if (url.pathname === "/agent/heartbeat" && request.method === "POST") {
       if (!agentAuthorized(request, env)) return new Response("Unauthorized", { status: 401 });
       const payload = await request.json<Record<string, unknown>>();
-      await env.APPLICATIONS.put("tgadmin:server-status", JSON.stringify({ ...payload, updatedAt: Date.now() }), { expirationTtl: 300 });
+      await env.APPLICATIONS.put("tgadmin:server-status", JSON.stringify({ ...payload, updatedAt: Date.now() }));
       return json({ ok: true });
     }
     if (url.pathname === "/agent/poll" && request.method === "GET") {
