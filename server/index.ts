@@ -7,6 +7,7 @@ import { SqliteKV } from './sqlite-kv';
 import { DiscordGateway, deliverInteraction } from './gateway';
 import { processRustPlusSnapshot } from '../src/handlers/rustPlusStats';
 import { handleTelegramTicketApi } from './telegram-ticket-api';
+import { refreshRecruitmentCriteriaPanel } from '../src/handlers/recruitmentControl';
 
 const gatewaySetting = process.env.DISCORD_GATEWAY_ENABLED ?? 'false';
 if (gatewaySetting !== 'true' && gatewaySetting !== 'false') throw new Error('DISCORD_GATEWAY_ENABLED must be true or false');
@@ -90,6 +91,11 @@ const server = createServer((request, response) => {
 const interval = gatewayEnabled ? setInterval(scheduled, 600_000) : undefined;
 server.listen(port, '0.0.0.0', () => {
   console.log('Rusticket health server listening');
+  if (env.TELEGRAM_TICKET_BOT_URL) {
+    context().waitUntil(refreshRecruitmentCriteriaPanel(env).catch((error: unknown) => {
+      console.error('Recruitment panel Telegram link update failed:', error instanceof Error ? error.message : 'unknown');
+    }));
+  }
   if (gatewayEnabled) {
     scheduled();
     void ingestRustPlusSnapshot();
