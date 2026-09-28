@@ -6,8 +6,14 @@ const { updateState, toSnapshot } = require("./tracker.cjs");
 const { createTeamChatHandler, gameClock } = require("./team-chat.cjs");
 const { DayNightClock, formatRemaining } = require("./day-night.cjs");
 
-const required = ["RUSTPLUS_SERVER_ID", "RUSTPLUS_IP", "RUSTPLUS_PORT", "RUSTPLUS_PLAYER_ID", "RUSTPLUS_PLAYER_TOKEN", "WORKER_URL", "RUSTPLUS_BRIDGE_TOKEN"];
+const required = ["RUSTPLUS_SERVER_ID", "RUSTPLUS_IP", "RUSTPLUS_PORT", "RUSTPLUS_PLAYER_ID", "RUSTPLUS_PLAYER_TOKEN", ];
 for (const key of required) if (!process.env[key]) throw new Error(`Missing environment variable: ${key}`);
+if (!process.env.SNAPSHOT_FILE && (!process.env.WORKER_URL || !process.env.RUSTPLUS_BRIDGE_TOKEN)) {
+  throw new Error("Set SNAPSHOT_FILE or both WORKER_URL and RUSTPLUS_BRIDGE_TOKEN");
+}
+if (process.env.SNAPSHOT_FILE && !path.isAbsolute(process.env.SNAPSHOT_FILE)) {
+  throw new Error("SNAPSHOT_FILE must be an absolute path");
+}
 if (!/^[a-z0-9][a-z0-9_-]{1,39}$/.test(process.env.RUSTPLUS_SERVER_ID)) throw new Error("RUSTPLUS_SERVER_ID must contain 2-40 lowercase letters, numbers, _ or -");
 
 const pollSeconds = Math.max(30, Number(process.env.POLL_SECONDS || 60));
@@ -153,6 +159,14 @@ async function getServerStatus(rustplus) {
 }
 
 async function sendSnapshot(snapshot) {
+  if (process.env.SNAPSHOT_FILE) {
+    const target = process.env.SNAPSHOT_FILE;
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    const temporary = `${target}.tmp`;
+    await fs.writeFile(temporary, JSON.stringify(snapshot), { mode: 0o600 });
+    await fs.rename(temporary, target);
+    return;
+  }
   const endpoint = new URL("/internal/rustplus/snapshot", process.env.WORKER_URL);
   const response = await fetch(endpoint, {
     method: "POST",

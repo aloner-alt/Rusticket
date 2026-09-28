@@ -29,6 +29,13 @@ export async function editOriginalResponse(env: Env, token: string, body: unknow
   });
 }
 
+export async function createFollowupResponse(env: Env, token: string, body: unknown): Promise<{ id: string }> {
+  return discordRest(env, `/webhooks/${env.DISCORD_APPLICATION_ID}/${token}`, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
 export async function sendChannelMessage(env: Env, channelId: string, body: {
   content?: string;
   embeds?: DiscordEmbed[];

@@ -1,0 +1,4 @@
+services:
+  rustplus-bridge:
+    environment:
+      SNAPSHOT_FILE: /app/.data/rusticket-snapshot.json

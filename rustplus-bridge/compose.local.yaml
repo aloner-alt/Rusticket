@@ -1,0 +1,5 @@
+services:
+  rustplus-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile.local

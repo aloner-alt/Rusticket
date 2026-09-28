@@ -11,3 +11,5 @@ coverage/
 *.log
 .data/
 .DS_Store
+
+.pnpm-store/

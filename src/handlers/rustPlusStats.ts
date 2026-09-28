@@ -133,6 +133,10 @@ export async function receiveRustPlusSnapshot(request: Request, env: Env): Promi
     if (new TextEncoder().encode(raw).byteLength > MAX_SNAPSHOT_BYTES) return new Response("Payload too large", { status: 413 });
     value = JSON.parse(raw) as unknown;
   } catch { return new Response("Invalid JSON", { status: 400 }); }
+  return processRustPlusSnapshot(value, env);
+}
+
+export async function processRustPlusSnapshot(value: unknown, env: Env): Promise<Response> {
   if (!validSnapshot(value)) return new Response("Invalid snapshot", { status: 400 });
   if (Math.abs(Date.now() - value.updatedAt) > 600_000) return new Response("Stale snapshot", { status: 400 });
   const previous = await getRustPlusSnapshot(env, value.serverId);

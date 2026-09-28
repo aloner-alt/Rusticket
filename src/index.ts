@@ -43,7 +43,7 @@ function validateEnvironment(env: Env): void {
   }
 }
 
-async function route(interaction: DiscordInteraction, env: Env, ctx: ExecutionContext): Promise<Response> {
+export async function handleInteraction(interaction: DiscordInteraction, env: Env, ctx: ExecutionContext): Promise<Response> {
   if (interaction.type === InteractionType.Ping) return jsonResponse({ type: InteractionResponseType.Pong });
 
   if (!interaction.guild_id || (interaction.guild_id !== env.DISCORD_GUILD_ID && interaction.guild_id !== env.PRIVATE_GUILD_ID)) {
@@ -245,7 +245,7 @@ export default {
     try {
       validateEnvironment(env);
       const interaction = JSON.parse(body) as DiscordInteraction;
-      return await route(interaction, env, ctx);
+      return await handleInteraction(interaction, env, ctx);
     } catch (error) {
       console.error("Interaction failed", error instanceof Error ? error.message : "unknown error");
       return jsonResponse({
