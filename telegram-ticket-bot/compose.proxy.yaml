@@ -1,0 +1,6 @@
+services:
+  telegram-ticket-bot:
+    environment:
+      NODE_USE_ENV_PROXY: '1'
+      HTTPS_PROXY: http://telegram-egress:8080
+      NO_PROXY: rusticket,localhost,127.0.0.1
