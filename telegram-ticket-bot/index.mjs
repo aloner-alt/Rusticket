@@ -1,3 +1,4 @@
+import {questions,roles,validateAnswer} from './form.mjs';
 const token = required("TELEGRAM_TICKET_BOT_TOKEN");
 const apiToken = required("TELEGRAM_TICKET_API_TOKEN");
 const apiUrl = process.env.RUSTICKET_INTERNAL_URL || "http://rusticket:3000";
@@ -45,7 +46,16 @@ async function showTickets(chatId, userId) {
 async function callback(query) {
   const id = String(query.from.id); const chatId = query.message?.chat.id; if (!chatId) return;
   await tg("answerCallbackQuery", { callback_query_id: query.id });
-  if (query.data === "new") { states.set(id, { step: "ticket-discord" }); return send(chatId, "Укажите ваш Discord ID (17–20 цифр). Если Discord нет — отправьте <code>-</code>."); }
+  if (query.data === "new") { states.set(id, { step: "application", index:0, answers:{} }); return send(chatId, questions[0][1]); }
+  if(query.data?.startsWith('role:')) return message({from:query.from,chat:query.message.chat,text:query.data.slice(5)});
+  if(query.data==='submit') {
+    const draft=states.get(id); if(draft?.step!=='confirm') return;
+    draft.step='sending';
+    try {
+      const result=await internal('/internal/telegram-tickets',{method:'POST',body:JSON.stringify({...draft.answers,telegramUserId:id,telegramUsername:query.from.username||query.from.first_name||'unknown'})});
+      states.delete(id); return send(chatId,`✅ Заявка отправлена. Номер: <code>${result.ticket.id}</code>`,keyboard(id));
+    } catch(error) {draft.step='confirm';return send(chatId,`⚠️ ${esc(error.message)}\n/cancel — начать заново.`,{inline_keyboard:[[{text:'Повторить отправку',callback_data:'submit'}]]});}
+  }
   if (query.data === "list") return showTickets(chatId, id);
   if (query.data === "warn" && role(id) === "owner") { states.set(id, { step: "warn-discord" }); return send(chatId, "Отправьте Discord ID участника, которому нужно выдать варн."); }
   const action = /^(accept|reject):([0-9a-f-]+)$/.exec(query.data || "");
@@ -59,14 +69,13 @@ async function message(message) {
   const id = String(message.from.id); const chatId = message.chat.id; const text = message.text?.trim(); if (!text) return;
   if (text === "/start" || text === "/menu" || text === "/cancel") { states.delete(id); return home(chatId, id); }
   const state = states.get(id); if (!state) return home(chatId, id);
-  if (state.step === "ticket-discord") {
-    if (text !== "-" && !/^\d{17,20}$/.test(text)) return send(chatId, "Некорректный Discord ID. Отправьте 17–20 цифр либо <code>-</code>.");
-    states.set(id, { step: "ticket-description", discordUserId: text === "-" ? "" : text }); return send(chatId, "Опишите обращение одним сообщением (минимум 5 символов).");
-  }
-  if (state.step === "ticket-description") {
-    if (text.length < 5 || text.length > 3000) return send(chatId, "Описание должно содержать от 5 до 3000 символов.");
-    const result = await internal("/internal/telegram-tickets", { method: "POST", body: JSON.stringify({ telegramUserId: id, telegramUsername: message.from.username || message.from.first_name || "unknown", discordUserId: state.discordUserId, description: text }) });
-    states.delete(id); return send(chatId, `✅ Тикет создан. Номер: <code>${result.ticket.id}</code>`, keyboard(id));
+  if(state.step==='application') {
+    const [key]=questions[state.index]; const value=key==='role'?text.toLowerCase():text;
+    const error=validateAnswer(key,value); if(error) return send(chatId,error);
+    state.answers[key]=value; state.index++;
+    if(state.index<questions.length) return send(chatId,questions[state.index][1],questions[state.index][0]==='role'?{inline_keyboard:roles.map(r=>[{text:r,callback_data:'role:'+r}])}:undefined);
+    state.step='confirm';
+    return send(chatId,`Проверьте анкету:\nDiscord: ${esc(state.answers.discordUserId)}\nИмя: ${esc(state.answers.realName)}\nВозраст: ${esc(state.answers.age)}\nРоль: ${esc(state.answers.role)}\nSteam: ${esc(state.answers.steamUrl)}\nОнлайн: ${esc(state.answers.dailyOnline)} ч./день\nО себе: ${esc(state.answers.description)}\n\nЧасы Rust проверим по Steam. /cancel — заполнить заново.`,{inline_keyboard:[[{text:'✅ Отправить заявку',callback_data:'submit'}]]});
   }
   if (state.step === "warn-discord" && role(id) === "owner") {
     if (!/^\d{17,20}$/.test(text)) return send(chatId, "Некорректный Discord ID.");
