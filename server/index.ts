@@ -6,6 +6,7 @@ import type { Env } from '../src/types';
 import { SqliteKV } from './sqlite-kv';
 import { DiscordGateway, deliverInteraction } from './gateway';
 import { processRustPlusSnapshot } from '../src/handlers/rustPlusStats';
+import { handleTelegramTicketApi } from './telegram-ticket-api';
 
 const gatewaySetting = process.env.DISCORD_GATEWAY_ENABLED ?? 'false';
 if (gatewaySetting !== 'true' && gatewaySetting !== 'false') throw new Error('DISCORD_GATEWAY_ENABLED must be true or false');
@@ -82,8 +83,9 @@ const server = createServer((request, response) => {
     response.end(JSON.stringify({ status: healthy ? 'ok' : 'starting', sqlite: 'ready', gateway: gatewayEnabled ? gateway?.isReady() ? 'enabled' : 'connecting' : 'disabled', scheduled: gatewayEnabled ? 'enabled' : 'disabled', importedKeys }));
     return;
   }
-  response.writeHead(404);
-  response.end();
+  void handleTelegramTicketApi(request, response, env).then(handled => {
+    if (!handled) { response.writeHead(404); response.end(); }
+  }).catch(() => { if (!response.headersSent) response.writeHead(500); response.end(); });
 });
 const interval = gatewayEnabled ? setInterval(scheduled, 600_000) : undefined;
 server.listen(port, '0.0.0.0', () => {

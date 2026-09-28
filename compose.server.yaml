@@ -29,6 +29,24 @@ services:
       retries: 3
       start_period: 20s
     stop_grace_period: 30s
+  telegram-ticket-bot:
+    container_name: telegram-ticket-bot
+    build:
+      context: ./telegram-ticket-bot
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    env_file:
+      - .env
+    environment:
+      RUSTICKET_INTERNAL_URL: http://rusticket:3000
+    depends_on:
+      rusticket:
+        condition: service_healthy
 volumes:
   rusticket-data:
     name: rusticket-data

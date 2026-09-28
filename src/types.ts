@@ -333,3 +333,20 @@ export interface StaffBanRequest {
   approvalMessageId?: string;
   unbanAt?: number;
 }
+
+export type TelegramTicketStatus = "PENDING" | "ACCEPTED" | "REJECTED";
+
+export interface TelegramTicketRecord {
+  id: string;
+  telegramUserId: string;
+  telegramUsername: string;
+  discordUserId?: string;
+  description: string;
+  ticketChannelId: string;
+  cardMessageId: string;
+  status: TelegramTicketStatus;
+  createdAt: string;
+  decidedAt?: string;
+  decidedByTelegramId?: string;
+  rejectionReason?: string;
+}

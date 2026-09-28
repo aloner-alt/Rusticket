@@ -196,6 +196,11 @@ async function issueAutomaticWipeWarning(env: Env, userId: string, moderatorId: 
   return { level, channelId };
 }
 
+export async function issueExternalWarning(env: Env, userId: string, moderatorId: string, reason: string): Promise<{ level: 1 | 2; channelId: string } | null> {
+  if (!/^\d{17,20}$/.test(userId) || !reason.trim()) throw new Error("Invalid warning input");
+  return issueAutomaticWipeWarning(env, userId, moderatorId, reason.trim());
+}
+
 export async function issueWarning(i: DiscordInteraction, env: Env): Promise<Response> {
   if (!isPrivateModerator(i, env)) return ephemeral("❌ Недостаточно прав.");
   const userId = i.data?.custom_id?.split(":").at(-1); const rawLevel = modalValue(i, "level");
